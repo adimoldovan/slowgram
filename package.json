@@ -1,0 +1,33 @@
+{
+  "name": "slowgram",
+  "version": "1.0.0",
+  "description": "an alternative to posting on instagram. add a photo once in a while, no stories, no likes, no comments, no ads, no tracking, no algorithms, no notifications, no pressure. just a photo.",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "webpack serve --open --config webpack.dev.js",
+    "build": "webpack --config webpack.prod.js",
+    "lint": "eslint ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adimoldovan/slowgram.git"
+  },
+  "author": "Adrian Moldovan",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/adimoldovan/slowgram/issues"
+  },
+  "homepage": "https://github.com/adimoldovan/slowgram",
+  "devDependencies": {
+    "css-loader": "^6.10.0",
+    "eslint": "^8.56.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.29.1",
+    "html-webpack-plugin": "^5.6.0",
+    "style-loader": "^3.3.4",
+    "webpack": "^5.90.0",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^4.15.1",
+    "webpack-merge": "^5.10.0"
+  }
+}
