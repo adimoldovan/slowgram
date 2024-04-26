@@ -3,7 +3,8 @@ name: Build and deploy to Pages
 on:
   push:
     branches: ["main"]
-
+    paths-ignore:
+      - "bin/**"
   workflow_dispatch:
 
 permissions:

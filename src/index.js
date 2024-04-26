@@ -1,6 +1,6 @@
 import './style.css';
 import data from './profile.json';
-import config from './config.json';
+import config from '../config.json';
 
 const { gravatarHash } = data;
 
