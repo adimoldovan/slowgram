@@ -11,7 +11,8 @@
     }
   ],
   "feed": {
-    "url": "https://d35zx8ajzaahp4.cloudfront.net/feed.json"
+    "url": "https://d35zx8ajzaahp4.cloudfront.net/feed.json",
+    "photos": "https://d35zx8ajzaahp4.cloudfront.net"
   },
   "gitUrl": "https://github.com/adimoldovan/slowgram.git"
 }

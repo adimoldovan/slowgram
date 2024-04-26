@@ -4,7 +4,7 @@ const exiftool = require('node-exiftool');
 const exiftoolBin = require('dist-exiftool');
 const config = require('../config');
 
-const photosDir = '/Volumes/extreme-pro/Media/Photo/Photos/Slowgram';
+const photosDir = process.env.SOURCE_PATH;
 const files = fs.readdirSync(photosDir);
 const imageFiles = files.filter(file => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file)));
 const images = [];
@@ -17,7 +17,7 @@ async function readMetadata() {
       const data = await ep.readMetadata(`${photosDir}/${file}`, ['-File:all']);
 
       const imageData = {
-        src: `${config.feed.url}/photos/${file}`,
+        src: `${config.feed.photos}/${file}`,
         date: data.data[0].DateTimeOriginal,
         size: {
           width: data.data[0].ImageSize.split('x')[0],
