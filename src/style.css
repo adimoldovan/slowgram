@@ -29,7 +29,7 @@ main {
 @supports (display: grid) {
     .gallery {
         display: grid;
-        grid-template-columns: repeat(1, fit-content(500px));
+        grid-template-columns: repeat(1, fit-content(600px));
         justify-content: center;
         grid-gap: 5px;
         padding-top: 2vh;
@@ -49,7 +49,7 @@ main {
 
     @media only screen and (min-width: 650px) {
         .gallery {
-            grid-template-columns: repeat(2, fit-content(300px));
+            grid-template-columns: repeat(2, 300px);
         }
 
         .gallery-image {
@@ -59,7 +59,7 @@ main {
     }
     @media only screen and (min-width: 915px) {
         .gallery {
-            grid-template-columns: repeat(3, fit-content(300px));
+            grid-template-columns: repeat(3, 300px);
         }
         .gallery-image {
             height: 300px;
