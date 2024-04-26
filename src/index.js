@@ -1,10 +1,10 @@
 import './style.css';
 import data from './profile.json';
-import photos from './photos.json';
+import config from './config.json';
 
 const { gravatarHash } = data;
 
-function contentComponent() {
+async function contentComponent() {
   const main = document.createElement('main');
 
   // region header
@@ -47,6 +47,9 @@ function contentComponent() {
   const gallery = document.createElement('div');
   gallery.id = 'gallery';
   gallery.className = 'gallery';
+
+  const response = await fetch(config.feed.url);
+  const photos = await response.json();
 
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
@@ -103,10 +106,22 @@ function contentComponent() {
 
   // region footer
   const footer = document.createElement('footer');
+  const footerContainer = document.createElement('div')
+  footerContainer.className = 'footer-source';
+  const ghLink = document.createElement('a');
+  ghLink.href = config.gitUrl;
+  ghLink.target = '_blank';
+  const ghIcon = document.createElement('img');
+  ghIcon.src = icons['github.svg']
+  ghIcon.alt = 'github icon';
+
+  ghLink.appendChild(ghIcon);
+  footerContainer.appendChild(ghLink);
+  footer.appendChild(footerContainer);
   main.appendChild(footer);
   // endregion
 
   return main;
 }
 
-document.body.appendChild(contentComponent());
+document.body.appendChild(await contentComponent());

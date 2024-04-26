@@ -136,3 +136,30 @@ a.prev {
 a.next {
     right: 5.2%;
 }
+
+/* Footer Section */
+
+footer {
+	margin-top: 30px;
+	padding-top: 30px;
+	padding-bottom: 30px;
+	text-align: center;
+	border-top: var(--borders-color) 1px solid;
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	color: var(--borders-color);
+}
+
+.footer-source {
+	text-align: center;
+	color: var(--borders-color);
+}
+
+.footer-source > a {
+	color: var(--borders-color);
+}
+
+footer > div {
+	flex: 50%;
+}
