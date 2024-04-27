@@ -27,6 +27,8 @@ export async function getPhotosGallery() {
     img.src = photo.src;
     img.className = 'gallery-image';
     img.alt = `Gallery image ${index + 1}`;
+    img.width = 600;
+    img.height = 600;
 
     const nextPhotoId = (index + 1) % photos.length;
     const prevPhotoId = (index - 1 + photos.length) % photos.length;
