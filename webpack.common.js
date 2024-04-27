@@ -1,12 +1,12 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const data = require('./src/profile.json');
+const config = require('./config.json');
 
 module.exports = {
   entry: { index: './src/index.js' },
   plugins: [
     new HtmlWebpackPlugin({
-      title: data.displayName,
+      title: config.displayName,
       favicon: './src/assets/favicon.png',
     }),
   ],

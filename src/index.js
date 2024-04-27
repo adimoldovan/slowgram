@@ -1,127 +1,47 @@
-import './style.css';
-import data from './profile.json';
-import config from '../config.json';
+import { getHeader } from './header';
+import { getFooter } from './footer';
+import { getPhotosGallery } from './photos';
+import { getPhotoView } from './photo';
 
-const { gravatarHash } = data;
+const routes = [
+  {
+    'path': '/',
+    'component': async () => await getPhotosGallery()
+  },
+  {
+    'path': '/photo',
+    'component': async () => await getPhotoView()
+  }
+];
 
-async function contentComponent() {
-  const main = document.createElement('main');
+document.body.appendChild(getHeader());
+const main = document.createElement('main')
+main.appendChild(document.createElement('div'));
+document.body.appendChild(main);
+document.body.appendChild(getFooter());
 
-  // region header
-  const header = document.createElement('header');
+window.router = async path => {
+  console.log('router', path);
+  window.history.pushState({}, '', path);
 
-  header.innerHTML = `<img class="profile-picture" src="https://www.gravatar.com/avatar/${gravatarHash}?s=200" alt="profile picture" />`;
+  for (const route of routes) {
+    if (route.path === path) {
+      console.log('match', route.path);
+      document.querySelector('main > div')
+        .replaceWith(await route.component());
+      break;
+    }
 
-  header.appendChild(document.createElement('h1')).textContent = data.displayName;
-  header.appendChild(document.createElement('p')).textContent = data.description;
-
-  // Import icons
-  const r = require.context('./assets/social', false, /\.(png|jpe?g|svg)$/);
-  const icons = {};
-  // eslint-disable-next-line array-callback-return
-  r.keys()
-    .map((item) => {
-      icons[item.replace('./', '')] = r(item);
-    });
-
-  // eslint-disable-next-line no-restricted-syntax
-  for (const account of data.accounts) {
-    const link = document.createElement('a');
-    link.href = account.url;
-    link.target = '_blank';
-
-    const img = document.createElement('img');
-    img.src = icons[account.icon];
-    img.alt = account.name;
-    link.appendChild(img);
-    header.appendChild(link);
+    console.log('no match', route.path);
+    const notfound = document.createElement('h1');
+    notfound.textContent = 'ups, not found';
+    document.querySelector('main > div')
+        .replaceWith(await route.component());
   }
 
-  main.appendChild(header);
-  // endregion
+  console.log(window.history);
+};
 
-  // region gallery
-  const container = document.createElement('div');
-  container.className = 'container';
-
-  const gallery = document.createElement('div');
-  gallery.id = 'gallery';
-  gallery.className = 'gallery';
-
-  const response = await fetch(config.feed.url);
-  const photos = await response.json();
-
-  photos.forEach((photo, index) => {
-    const link = document.createElement('a');
-    link.href = `#lightbox-${index}`;
-    link.className = 'gallery-item';
-
-    const img = document.createElement('img');
-    img.src = photo.src;
-    img.className = 'gallery-image';
-    img.alt = `Gallery image ${index + 1}`;
-
-    const nextPhotoId = (index + 1) % photos.length;
-    const prevPhotoId = (index - 1 + photos.length) % photos.length;
-
-    const lightbox = document.createElement('div');
-    lightbox.className = 'lightbox';
-    lightbox.id = `lightbox-${index}`;
-    const lightboxImg = document.createElement('img');
-    lightboxImg.src = photo.src;
-
-    const lightboxNext = document.createElement('a');
-    lightboxNext.className = 'slideshow-nav next';
-    lightboxNext.href = `#lightbox-${nextPhotoId}`;
-    lightboxNext.textContent = '→';
-
-    const lightboxPrev = document.createElement('a');
-    lightboxPrev.className = 'slideshow-nav prev';
-    lightboxPrev.href = `#lightbox-${prevPhotoId}`;
-    lightboxPrev.textContent = '←';
-
-    const lightboxClose = document.createElement('a');
-    lightboxClose.className = 'slideshow-nav close';
-    lightboxClose.href = '#';
-    lightboxClose.textContent = 'X';
-
-    const lightboxCaption = document.createElement('h1');
-    lightboxCaption.className = 'photo-caption';
-    lightboxCaption.textContent = photo.title;
-
-    lightbox.appendChild(lightboxImg);
-    lightbox.appendChild(lightboxNext);
-    lightbox.appendChild(lightboxClose);
-    lightbox.appendChild(lightboxPrev);
-    lightbox.appendChild(lightboxCaption);
-
-    link.appendChild(img);
-    gallery.appendChild(link);
-    gallery.appendChild(lightbox);
-  });
-
-  container.appendChild(gallery);
-  main.appendChild(gallery);
-  // endregion
-
-  // region footer
-  const footer = document.createElement('footer');
-  const footerContainer = document.createElement('div')
-  footerContainer.className = 'footer-source';
-  const ghLink = document.createElement('a');
-  ghLink.href = config.gitUrl;
-  ghLink.target = '_blank';
-  const ghIcon = document.createElement('img');
-  ghIcon.src = icons['github.svg']
-  ghIcon.alt = 'github icon';
-
-  ghLink.appendChild(ghIcon);
-  footerContainer.appendChild(ghLink);
-  footer.appendChild(footerContainer);
-  main.appendChild(footer);
-  // endregion
-
-  return main;
-}
-
-document.body.appendChild(await contentComponent());
+console.log('index');
+window.router('/')
+  .then(r => console.log('router done'));

@@ -1,28 +1,35 @@
 :root {
     --font-color: #333;
     --bg-color: #f5f5f5;
-    --borders-color: #999999;
+    --borders-color: #999;
 }
 
 body {
-    font-family: Arial, sans-serif;
-    padding: 50px;
+    font-family: -apple-system, "system-ui", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--font-color);
     text-align: center;
 }
 
 main {
-    padding-top: 1vh;
+    margin: 1px auto;
 }
 
-.container {
+header {
     margin: 0 auto;
-
+    max-width: 912px;
+    padding-bottom: 1vh;
+    padding-top: 1vh;
+    border-bottom: var(--borders-color) 1px solid;
 }
 
 .profile-picture {
     border-radius: 50%;
     height: 100px;
     width: 100px;
+}
+
+.container {
+    margin: 0 auto;
 }
 
 /* Gallery Section */
@@ -33,6 +40,7 @@ main {
         justify-content: center;
         grid-gap: 5px;
         padding-top: 2vh;
+        padding-bottom: 2vh;
     }
 
     .gallery-item {
@@ -47,7 +55,27 @@ main {
         object-fit: scale-down;
     }
 
-    @media only screen and (min-width: 650px) {
+    @media only screen and (min-width: 400px) {
+        .gallery {
+            grid-template-columns: repeat(2, 195px);
+        }
+        .gallery-image {
+            height: 195px;
+            object-fit: cover;
+        }
+    }
+
+    @media only screen and (min-width: 500px) {
+        .gallery {
+            grid-template-columns: repeat(2, 250px);
+        }
+        .gallery-image {
+            height: 250px;
+            object-fit: cover;
+        }
+    }
+
+    @media only screen and (min-width: 602px) {
         .gallery {
             grid-template-columns: repeat(2, 300px);
         }
@@ -140,9 +168,10 @@ a.next {
 /* Footer Section */
 
 footer {
-	margin-top: 30px;
-	padding-top: 30px;
-	padding-bottom: 30px;
+    margin: 0 auto;
+    max-width: 912px;
+    padding-bottom: 1vh;
+    padding-top: 1vh;
 	text-align: center;
 	border-top: var(--borders-color) 1px solid;
 	display: flex;
