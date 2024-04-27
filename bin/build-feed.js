@@ -16,9 +16,17 @@ async function readMetadata() {
     try {
       const data = await ep.readMetadata(`${photosDir}/${file}`, ['-File:all']);
 
+      const dateParts = data.data[0].DateTimeOriginal.split(' ');
+      const datePart = dateParts[0].replace(/:/g, '-');
+      const timePart = dateParts[1];
+      const timestamp = Date.parse(`${datePart}T${timePart}`);
+
       const imageData = {
         src: `${config.feed.photos}/${file}`,
-        date: data.data[0].DateTimeOriginal,
+        dateTaken: {
+          timestamp,
+          original: data.data[0].DateTimeOriginal,
+        },
         size: {
           width: data.data[0].ImageSize.split('x')[0],
           height: data.data[0].ImageSize.split('x')[1],
@@ -32,15 +40,19 @@ async function readMetadata() {
         },
         title: data.data[0].ObjectName,
         keywords: data.data[0].Keywords,
-      }
+      };
 
-      console.log(imageData)
+      console.log(imageData);
       images.push(imageData);
     } catch (error) {
       console.error(error);
     }
   }
-  console.log(images.length);
+
+  console.log(`${images.length} images`);
+
+  console.log('Sorting by date taken');
+  images.sort((a, b) => b.dateTaken.timestamp - a.dateTaken.timestamp);
 
   fs.writeFileSync(`${photosDir}/feed.json`, JSON.stringify(images));
 
@@ -48,4 +60,4 @@ async function readMetadata() {
 }
 
 readMetadata()
-  .then(r  => console.log('done'))
+  .then(r => console.log('done'));
