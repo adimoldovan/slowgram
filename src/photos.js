@@ -16,11 +16,11 @@ export async function getPhotosGallery() {
 
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
-    // link.href = `#lightbox-${index}`;
-    link.addEventListener('click', (event) => {
-      event.preventDefault();
-      window.router(`/photo?id=${index}`);
-    });
+    link.href = `#lightbox-${index}`;
+    // link.addEventListener('click', (event) => {
+    //   event.preventDefault();
+    //   window.router(`/photo?id=${index}`);
+    // });
     link.className = 'gallery-item';
 
     const img = document.createElement('img');
