@@ -57,7 +57,7 @@ export async function getPhotosGallery() {
     const lightboxClose = document.createElement('a');
     lightboxClose.className = 'slideshow-nav close';
     lightboxClose.href = '#';
-    lightboxClose.textContent = 'X';
+    lightboxClose.textContent = '×';
 
     const lightboxCaption = document.createElement('h1');
     lightboxCaption.className = 'photo-caption';

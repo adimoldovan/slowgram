@@ -1,6 +1,7 @@
 :root {
     --font-color: #333;
-    --bg-color: #f5f5f5;
+    --bg-color: #333;
+    --contrast-color: #f5f5f5;
     --borders-color: #bfbfbf;
 }
 
@@ -123,7 +124,8 @@ header {
     left: 0;
     color: var(--font-color);
     transition: opacity 0.5s ease-in-out;
-    background-color: var(--bg-color);
+    background-color: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(15px);
     text-align: center;
 }
 
@@ -135,8 +137,8 @@ header {
 .lightbox img {
     position: fixed;
     padding: 0;
-    max-height: 90%;
-    max-width: 90%;
+    max-height: 95%;
+    max-width: 95%;
     top: 50%;
     left: 50%;
     margin: 0 -50% 0 0;
@@ -144,15 +146,15 @@ header {
 }
 
 a.slideshow-nav {
-    color: var(--font-color);
+    color: var(--contrast-color);
     z-index: 999999;
     text-decoration: none;
     position: fixed;
     font-size: 36px;
     border-radius: 12px;
     padding: 5px 10px 5px 10px;
-    background-color: var(--bg-color);
-    opacity: 70%;
+    background-color: rgba(0, 0, 0, 0.3);
+    opacity: 80%;
 }
 
 a.slideshow-nav:hover {
@@ -168,7 +170,7 @@ a.close {
 
 a.prev,
 a.next {
-    top: 50%;
+    top: 90%;
     transform: translate(0%, -50%);
 }
 
