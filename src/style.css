@@ -41,7 +41,7 @@ header {
 @supports (display: grid) {
     .gallery {
         display: grid;
-        grid-template-columns: repeat(1, fit-content(600px));
+        grid-template-columns: repeat(1, fit-content(390px));
         justify-content: center;
         grid-gap: 5px;
         padding-top: 1vh;
@@ -55,17 +55,18 @@ header {
     }
 
     .gallery-image {
+        height: 100%;
         width: 100%;
         vertical-align: top;
         object-fit: scale-down;
     }
 
-    @media only screen and (min-width: 400px) {
+    @media only screen and (min-width: 390px) {
         .gallery {
-            grid-template-columns: repeat(2, 195px);
+            grid-template-columns: repeat(2, 188px);
         }
         .gallery-image {
-            height: 195px;
+            height: 188px;
             object-fit: cover;
         }
     }
@@ -87,6 +88,15 @@ header {
 
         .gallery-image {
             height: 300px;
+            object-fit: cover;
+        }
+    }
+    @media only screen and (min-width: 750px) {
+        .gallery {
+            grid-template-columns: repeat(3, 250px);
+        }
+        .gallery-image {
+            height: 250px;
             object-fit: cover;
         }
     }
