@@ -42,9 +42,10 @@ async function readMetadata() {
   }
   console.log(images.length);
 
-  fs.writeFileSync(`${photosDir}/feed.json`, JSON.stringify(images, null, 2));
+  fs.writeFileSync(`${photosDir}/feed.json`, JSON.stringify(images));
 
   await ep.close();
 }
 
-readMetadata();
+readMetadata()
+  .then(r  => console.log('done'))

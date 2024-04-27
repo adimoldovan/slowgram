@@ -10,4 +10,5 @@ if [[ -z "$SOURCE_PATH" ]]; then
   exit 1
 fi
 
+#gzip "$SOURCE_PATH/feed.json" "$SOURCE_PATH/feed.json.gz"
 aws s3 sync "$SOURCE_PATH" "s3://$BUCKET_NAME" --delete
