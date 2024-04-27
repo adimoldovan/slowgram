@@ -59,15 +59,10 @@ export async function getPhotosGallery() {
     lightboxClose.href = '#';
     lightboxClose.textContent = '×';
 
-    const lightboxCaption = document.createElement('h1');
-    lightboxCaption.className = 'photo-caption';
-    lightboxCaption.textContent = photo.title;
-
     lightbox.appendChild(lightboxImg);
     lightbox.appendChild(lightboxNext);
     lightbox.appendChild(lightboxClose);
     lightbox.appendChild(lightboxPrev);
-    lightbox.appendChild(lightboxCaption);
 
     link.appendChild(img);
     gallery.appendChild(link);
@@ -76,7 +71,6 @@ export async function getPhotosGallery() {
 
   container.appendChild(gallery);
   return container
-  // main.appendChild(gallery);
   // endregion
 }
 

@@ -124,8 +124,9 @@ header {
     left: 0;
     color: var(--font-color);
     transition: opacity 0.5s ease-in-out;
-    background-color: rgba(0, 0, 0, 0.7);
+    background-color: rgba(0, 0, 0, 0.8);
     backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
     text-align: center;
 }
 
