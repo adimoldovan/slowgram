@@ -21,18 +21,15 @@ document.body.appendChild(main);
 document.body.appendChild(getFooter());
 
 window.router = async path => {
-  console.log('router', path);
   window.history.pushState({}, '', path);
 
   for (const route of routes) {
     if (route.path === path) {
-      console.log('match', route.path);
       document.querySelector('main > div')
         .replaceWith(await route.component());
       break;
     }
 
-    console.log('no match', route.path);
     const notfound = document.createElement('h1');
     notfound.textContent = 'ups, not found';
     document.querySelector('main > div')
