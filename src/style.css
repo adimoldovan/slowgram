@@ -62,12 +62,12 @@ header {
         object-fit: scale-down;
     }
 
-    @media only screen and (min-width: 390px) {
+    @media only screen and (min-width: 380px) {
         .gallery {
-            grid-template-columns: repeat(2, 188px);
+            grid-template-columns: repeat(2, 185px);
         }
         .gallery-image {
-            height: 188px;
+            height: 185px;
             object-fit: cover;
         }
     }
