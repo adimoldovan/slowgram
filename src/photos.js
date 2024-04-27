@@ -14,6 +14,11 @@ export async function getPhotosGallery() {
   const response = await fetch(config.feed.url);
   const photos = await response.json();
 
+  const count = document.createElement('span');
+  count.textContent = `${photos.length} photos`;
+  count.className = 'counter';
+  container.appendChild(count);
+
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
     link.href = `#lightbox-${index}`;
