@@ -8,6 +8,10 @@ module.exports = {
     new HtmlWebpackPlugin({
       title: config.displayName,
       favicon: './src/assets/favicon.png',
+      lang: 'en',
+      meta: {
+        description: config.description,
+      }
     }),
   ],
   output: {
