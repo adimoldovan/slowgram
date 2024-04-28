@@ -11,4 +11,4 @@ if [[ -z "$SOURCE_PATH" ]]; then
 fi
 
 #gzip "$SOURCE_PATH/feed.json" "$SOURCE_PATH/feed.json.gz"
-aws s3 sync "$SOURCE_PATH" "s3://$BUCKET_NAME" --delete
+aws s3 sync "$SOURCE_PATH/s3" "s3://$BUCKET_NAME" --delete
