@@ -36,11 +36,11 @@ export async function getPhotosGallery() {
       .join(', ');
 
     const img = document.createElement('img');
-    img.src = imageSrc;
+    img.src = imageSrc.replace('1080', '320');
     img.srcset = imageSrcSet;
     img.className = 'gallery-image';
     img.alt = `Gallery image ${index + 1}`;
-    img.sizes = `320px`;
+    img.sizes = '320px';
 
     const nextPhotoId = (index + 1) % photos.length;
     const prevPhotoId = (index - 1 + photos.length) % photos.length;
@@ -49,8 +49,9 @@ export async function getPhotosGallery() {
     lightbox.className = 'lightbox';
     lightbox.id = `lightbox-${index}`;
     const lightboxImg = document.createElement('img');
-    lightboxImg.src = imageSrc;
+    lightboxImg.src = imageSrc.replace('1080', '320');
     lightboxImg.srcset = imageSrcSet;
+    lightboxImg.sizes = '320px';
     lightboxImg.sizes = `(max-width: 380px) 320px,
               (max-width: 500px) 480px,
               (max-width: 602px) 600px,

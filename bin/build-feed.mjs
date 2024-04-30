@@ -96,14 +96,15 @@ async function run() {
     images.push(image);
   }
 
+  console.log(''.padStart(200, ' '));
   console.log(`✅ Added ${images.length} images in feed.`.padEnd(50, ' '));
 
   images.sort((a, b) => b.dateTaken.timestamp - a.dateTaken.timestamp);
-  console.log('✅ Sorted by date taken');
+  console.log('✅ Sorted by date taken.');
 
   const feedFilePath = `${outputDir}/feed.json`;
   fs.writeFileSync(feedFilePath, JSON.stringify(images));
-  console.log(`✅ Feed saved as ${feedFilePath}`);
+  console.log(`✅ Feed saved as ${feedFilePath}.`);
 }
 
 async function getExifData(filePath) {
@@ -143,3 +144,4 @@ async function convertImageToWebp(dir, fileName) {
 }
 
 await run();
+console.log(`✅ All done!`);
