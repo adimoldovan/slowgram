@@ -28,12 +28,19 @@ export async function getPhotosGallery() {
     // });
     link.className = 'gallery-item';
 
+    const imageSrc = `${photo.src.path}/${photo.src.src}`;
+    const imageSrcSet = photo.src.set.map((pair) => {
+      const parts = pair.split(' ');
+      return `${photo.src.path}/${parts[0]} ${parts[1]}`;
+    })
+      .join(', ');
+
     const img = document.createElement('img');
-    img.src = photo.src;
+    img.src = imageSrc;
+    img.srcset = imageSrcSet;
     img.className = 'gallery-image';
     img.alt = `Gallery image ${index + 1}`;
-    img.width = 600;
-    img.height = 600;
+    img.sizes = `320px`;
 
     const nextPhotoId = (index + 1) % photos.length;
     const prevPhotoId = (index - 1 + photos.length) % photos.length;
@@ -42,7 +49,13 @@ export async function getPhotosGallery() {
     lightbox.className = 'lightbox';
     lightbox.id = `lightbox-${index}`;
     const lightboxImg = document.createElement('img');
-    lightboxImg.src = photo.src;
+    lightboxImg.src = imageSrc;
+    lightboxImg.srcset = imageSrcSet;
+    lightboxImg.sizes = `(max-width: 380px) 320px,
+              (max-width: 500px) 480px,
+              (max-width: 602px) 600px,
+              (max-width: 750px) 800px,
+              1080px`;
 
     const lightboxNext = document.createElement('a');
     lightboxNext.className = 'slideshow-nav next';
@@ -70,7 +83,7 @@ export async function getPhotosGallery() {
   });
 
   container.appendChild(gallery);
-  return container
+  return container;
   // endregion
 }
 

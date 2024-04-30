@@ -2,88 +2,144 @@ import fs from 'fs';
 import path from 'path';
 import exiftool from 'node-exiftool';
 import exiftoolBin from 'dist-exiftool';
-import config from '../config.json' assert { type: "json" };
-import imagemin from "imagemin";
-import webp from "imagemin-webp";
+import config from '../config.json' assert { type: 'json' };
+import imagemin from 'imagemin';
+import webp from 'imagemin-webp';
+import sharp from 'sharp';
 
-const photosDir = process.env.SOURCE_PATH;
-console.log(`Reading photos from ${photosDir}`);
-const files = fs.readdirSync(photosDir);
-const imageFiles = files.filter(file => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file)));
-const images = [];
-const ep = new exiftool.ExiftoolProcess(exiftoolBin);
+const sizes = [320, 480, 600, 800, 1080];
 
-async function readMetadata() {
-  console.log('Reading metadata from images and building the feed...');
-  await ep.open();
-  for (const file of imageFiles) {
-    console.log(`\tReading data for ${file}...`);
-    try {
-      const data = await ep.readMetadata(`${photosDir}/${file}`, ['-File:all']);
+async function run() {
+  console.log();
 
-      const dateParts = data.data[0].DateTimeOriginal.split(' ');
-      const datePart = dateParts[0].replace(/:/g, '-');
-      const timePart = dateParts[1];
-      const timestamp = Date.parse(`${datePart}T${timePart}`);
+  const photosDir = process.env.SLOWGRAM_SOURCE_PATH;
+  const outputDir = process.env.SLOWGRAM_S3_SOURCE_PATH;
 
-      const parsedPath = path.parse(file);
-      parsedPath.ext = '.webp';
-      parsedPath.base = `${parsedPath.name}${parsedPath.ext}`;
-      const webpFile = path.format(parsedPath);
-
-      const imageData = {
-        src: `${config.feed.photos}/${webpFile}`,
-        dateTaken: {
-          timestamp,
-          original: data.data[0].DateTimeOriginal,
-        },
-        size: {
-          width: data.data[0].ImageSize.split('x')[0],
-          height: data.data[0].ImageSize.split('x')[1],
-        },
-        camera: `${data.data[0].Make} ${data.data[0].Model}`,
-        location: {
-          city: data.data[0].City,
-          state: data.data[0].State,
-          country: data.data[0].Country,
-        },
-        title: data.data[0].ObjectName,
-        keywords: data.data[0].Keywords,
-      };
-
-      // console.log(imageData);
-      images.push(imageData);
-    } catch (error) {
-      console.error(error);
-    }
-  }
-
-  console.log(`${images.length} images`);
-
-  console.log('Sorting by date taken');
-  images.sort((a, b) => b.dateTaken.timestamp - a.dateTaken.timestamp);
-
-  fs.writeFileSync(`${photosDir}/s3/feed.json`, JSON.stringify(images));
-
-  await ep.close();
-}
-
-async function convertImages() {
-  console.log('Converting images to webp format...');
+  console.log(`➤ Finding images in ${photosDir}`);
   const files = fs.readdirSync(photosDir);
   const imageFiles = files.filter(file => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file)));
-  for (const file of imageFiles) {
-    console.log(`\tConverting ${file}...`);
-    const input = `${photosDir}/${file}`;
-    const output = `${photosDir}/s3/${file}`;
-    await imagemin([input], {
-      destination: `${photosDir}/s3`,
+  const images = [];
+
+  console.log(`➤ Clearing ${outputDir} folder...`);
+  clearDir(outputDir);
+
+  console.log('➤ Processing images...');
+  for (let i = 0; i < imageFiles.length; i++) {
+    const file = imageFiles[i];
+    const progress = `${Math.round((i / imageFiles.length) * 100)}% ${file}`;
+    const image = {};
+
+    process.stdout.write(`  ➤ ${progress}: getting EXIF data\r`);
+    const filePath = `${photosDir}/${file}`;
+    const data = await getExifData(filePath);
+
+    // Get the date taken in timestamp and original format
+    const dateParts = data.DateTimeOriginal.split(' ');
+    const datePart = dateParts[0].replace(/:/g, '-');
+    const timePart = dateParts[1];
+    const timestamp = Date.parse(`${datePart}T${timePart}`);
+    image.dateTaken = {
+      timestamp,
+      original: data.DateTimeOriginal,
+    };
+
+    // Set the rest of the image data
+    image.camera = `${data.Make} ${data.Model}`;
+    image.location = {
+      city: data.City,
+      state: data.State,
+      country: data.Country,
+    };
+    image.title = data.ObjectName;
+    image.keywords = data.Keywords;
+
+    // Build the srcset
+    const parsedPath = path.parse(filePath);
+    const originalWidth = data.ImageSize.split('x')[0];
+    image.src = {
+      path: `${config.feed.photos}/${parsedPath.name}`,
+      set: []
+    };
+
+    const setPath = `${outputDir}/${parsedPath.name}`;
+    clearDir(setPath);
+    let lastSize = 0;
+
+    for (const targetWidth of sizes) {
+      if (targetWidth <= originalWidth) {
+        process.stdout.write(`  ➤ ${progress}: resizing to ${originalWidth}w                \r`);
+
+        let targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
+        const targetFilePath = `${setPath}/${targetFileName}`;
+
+        await sharp(filePath)
+          .resize(targetWidth)
+          .toFile(targetFilePath);
+
+        // Convert to webp
+        process.stdout.write(`  ➤ ${progress}: Converting ${targetFileName} to .webp        \r`);
+        await convertImageToWebp(setPath, targetFileName);
+        const convertedFileName = `${parsedPath.name}-${targetWidth}w.webp`;
+
+        image.src.set.push(`${convertedFileName} ${targetWidth}w`);
+
+        // Remove the original (jpg) file
+        fs.rmSync(targetFilePath);
+
+        if (targetWidth > lastSize) {
+          lastSize = targetWidth;
+          image.src.src = convertedFileName;
+        }
+      }
+    }
+
+    images.push(image);
+  }
+
+  console.log(`✅ Added ${images.length} images in feed.`.padEnd(50, ' '));
+
+  images.sort((a, b) => b.dateTaken.timestamp - a.dateTaken.timestamp);
+  console.log('✅ Sorted by date taken');
+
+  const feedFilePath = `${outputDir}/feed.json`;
+  fs.writeFileSync(feedFilePath, JSON.stringify(images));
+  console.log(`✅ Feed saved as ${feedFilePath}`);
+}
+
+async function getExifData(filePath) {
+  let data;
+  const ep = new exiftool.ExiftoolProcess(exiftoolBin);
+  await ep.open();
+
+  try {
+    data = await ep.readMetadata(filePath, ['-File:all']);
+  } catch (error) {
+    console.error(error);
+  }
+  await ep.close();
+  return data.data[0];
+}
+
+function clearDir(dir) {
+  fs.rmSync(dir, {
+    recursive: true,
+    force: true
+  });
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+async function convertImageToWebp(dir, fileName) {
+  try {
+    await imagemin([`${dir}/${fileName}`], {
+      destination: dir,
       plugins: [
-        webp({ quality: 75 })
+        webp({ quality: 80 })
       ]
     });
+  } catch (error) {
+    console.log('');
+    throw new Error(`Error converting ${fileName} to .webp: ${error}`);
   }
 }
 
-await readMetadata();
-await convertImages();
+await run();
