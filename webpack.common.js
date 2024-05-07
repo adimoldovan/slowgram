@@ -1,17 +1,35 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const config = require('./config.json');
+const WorkboxPlugin = require('workbox-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
   entry: { index: './src/index.js' },
   plugins: [
     new HtmlWebpackPlugin({
       title: config.displayName,
+      template: './src/assets/index.html',
       favicon: './src/assets/favicon.png',
-      lang: 'en',
       meta: {
         description: config.description,
-      }
+      },
+    }),
+    new WorkboxPlugin.GenerateSW({
+      clientsClaim: true,
+      skipWaiting: true,
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: 'manifest.json',
+          to: 'manifest.json'
+        },
+        {
+          from: 'src/assets/icons',
+          to: '.'
+        }
+      ]
     }),
   ],
   output: {

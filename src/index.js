@@ -36,9 +36,19 @@ window.router = async path => {
         .replaceWith(await route.component());
   }
 
-  console.log(window.history);
+  // console.log(window.history);
 };
 
-console.log('index');
+// console.log('index');
 window.router('/')
   .then(r => console.log('router done'));
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').then((registration) => {
+      console.log('ServiceWorker registration successful with scope: ', registration.scope);
+    }, (err) => {
+      console.error('ServiceWorker registration failed: ', err);
+    });
+  });
+}
