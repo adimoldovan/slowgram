@@ -1,6 +1,6 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const config = require('./config.json');
+const manifest = require('./manifest.json');
 const WorkboxPlugin = require('workbox-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
@@ -8,11 +8,11 @@ module.exports = {
   entry: { index: './src/index.js' },
   plugins: [
     new HtmlWebpackPlugin({
-      title: config.displayName,
+      title: manifest.name,
       template: './src/assets/index.html',
       favicon: './src/assets/favicon.png',
       meta: {
-        description: config.description,
+        description: manifest.description,
       },
     }),
     new WorkboxPlugin.GenerateSW({

@@ -15,7 +15,7 @@ const routes = [
 ];
 
 document.body.appendChild(getHeader());
-const main = document.createElement('main')
+const main = document.createElement('main');
 main.appendChild(document.createElement('div'));
 document.body.appendChild(main);
 document.body.appendChild(getFooter());
@@ -33,22 +33,20 @@ window.router = async path => {
     const notfound = document.createElement('h1');
     notfound.textContent = 'ups, not found';
     document.querySelector('main > div')
-        .replaceWith(await route.component());
+      .replaceWith(await route.component());
   }
-
-  // console.log(window.history);
 };
 
-// console.log('index');
 window.router('/')
-  .then(r => console.log('router done'));
+  .then(r => console.log('Hello!'));
 
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').then((registration) => {
-      console.log('ServiceWorker registration successful with scope: ', registration.scope);
-    }, (err) => {
-      console.error('ServiceWorker registration failed: ', err);
-    });
+    navigator.serviceWorker.register('/service-worker.js')
+      .then((registration) => {
+        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+      }, (err) => {
+        console.error('ServiceWorker registration failed: ', err);
+      });
   });
 }
