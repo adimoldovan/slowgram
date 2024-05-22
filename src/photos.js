@@ -21,11 +21,8 @@ export async function getPhotosGallery() {
 
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
+    link.id = `p${index}`;
     link.href = `#lightbox-${index}`;
-    // link.addEventListener('click', (event) => {
-    //   event.preventDefault();
-    //   window.router(`/photo?id=${index}`);
-    // });
     link.className = 'gallery-item';
 
     const imageSrc = `${photo.src.path}/${photo.src.src}`;
@@ -51,7 +48,7 @@ export async function getPhotosGallery() {
     const lightboxImg = document.createElement('img');
     lightboxImg.src = imageSrc.replace('1080', '320');
     lightboxImg.srcset = imageSrcSet;
-    lightboxImg.sizes = '320px';
+    lightboxImg.sizes = '90vw';
     lightboxImg.sizes = `(max-width: 380px) 320px,
               (max-width: 500px) 480px,
               (max-width: 602px) 600px,
@@ -70,7 +67,7 @@ export async function getPhotosGallery() {
 
     const lightboxClose = document.createElement('a');
     lightboxClose.className = 'slideshow-nav close';
-    lightboxClose.href = '#';
+    lightboxClose.href = `#${link.id}`;
     lightboxClose.textContent = '×';
 
     lightbox.appendChild(lightboxImg);
