@@ -1,7 +1,7 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const manifest = require('./manifest.json');
-const WorkboxPlugin = require('workbox-webpack-plugin');
+
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
@@ -14,10 +14,6 @@ module.exports = {
       meta: {
         description: manifest.description,
       },
-    }),
-    new WorkboxPlugin.GenerateSW({
-      clientsClaim: true,
-      skipWaiting: true,
     }),
     new CopyWebpackPlugin({
       patterns: [

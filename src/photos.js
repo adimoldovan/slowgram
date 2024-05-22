@@ -1,8 +1,7 @@
 import './style.css';
 import './style.css';
-import config from '../config.json';
 
-export async function getPhotosGallery() {
+export async function getPhotosGallery(photos) {
   // region gallery
   const container = document.createElement('div');
   container.className = 'container';
@@ -11,9 +10,6 @@ export async function getPhotosGallery() {
   gallery.id = 'gallery';
   gallery.className = 'gallery';
 
-  const response = await fetch(config.feed.url);
-  const photos = await response.json();
-
   const count = document.createElement('span');
   count.textContent = `${photos.length} photos`;
   count.className = 'counter';
@@ -21,11 +17,8 @@ export async function getPhotosGallery() {
 
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
-    link.href = `#lightbox-${index}`;
-    // link.addEventListener('click', (event) => {
-    //   event.preventDefault();
-    //   window.router(`/photo?id=${index}`);
-    // });
+    // link.href = `#lightbox-${index}`;
+    link.href = `?p=${photo.id}`;
     link.className = 'gallery-item';
 
     const imageSrc = `${photo.src.path}/${photo.src.src}`;

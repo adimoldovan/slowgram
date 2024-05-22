@@ -10,7 +10,11 @@ export function getHeader() {
     const { gravatarHash } = config;
     header.innerHTML = `<img class="profile-picture" src="https://www.gravatar.com/avatar/${gravatarHash}?s=200" alt="profile picture" />`;
 
-    header.appendChild(document.createElement('h1')).textContent = manifest.name;
+    const title = document.createElement('a');
+    title.href = '/';
+    title.className = 'title-link';
+    title.appendChild(document.createElement('h1')).textContent = manifest.name
+    header.appendChild(title);
     header.appendChild(document.createElement('p')).textContent = manifest.description;
 
     // eslint-disable-next-line no-restricted-syntax

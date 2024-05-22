@@ -39,5 +39,8 @@
     "webpack-dev-server": "^5.0.4",
     "webpack-merge": "^5.10.0",
     "workbox-webpack-plugin": "^7.1.0"
+  },
+  "dependencies": {
+    "swiper": "^11.1.3"
   }
 }

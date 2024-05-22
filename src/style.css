@@ -1,3 +1,5 @@
+@import 'swiper/swiper-bundle.css';
+
 :root {
     --font-color: #333;
     --bg-color: #333;
@@ -29,6 +31,11 @@ header {
     width: 100px;
 }
 
+.title-link {
+    color: var(--font-color);
+    text-decoration: none;
+}
+
 .container {
     margin: 0 auto;
     padding-top: 1vh;
@@ -36,6 +43,13 @@ header {
 
 .counter {
     margin-top: 1px;
+}
+
+.single-image {
+    display: block;
+    margin: 0 auto;
+    padding-top: 1vh;
+    padding-bottom: 1vh;
 }
 
 /* Gallery Section */

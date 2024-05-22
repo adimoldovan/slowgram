@@ -56,6 +56,7 @@ async function run() {
     // Build the srcset
     const parsedPath = path.parse(filePath);
     const originalWidth = data.ImageSize.split('x')[0];
+    image.id = parsedPath.name.replace(/ /g, '-');
     image.src = {
       path: `${config.feed.photos}/${parsedPath.name}`,
       set: []
