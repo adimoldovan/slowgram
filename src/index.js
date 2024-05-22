@@ -1,8 +1,9 @@
 import { getHeader } from './header';
 import { getFooter } from './footer';
 import { getPhotosGallery } from './photos';
-import { getPhotoView } from './photo';
+import { getPhotoView, initializeSwiper } from './photo';
 import config from '../config.json';
+import Swiper from 'swiper';
 
 function getURLParameters() {
   const params = new URLSearchParams(new URL(window.location.href).search);
@@ -36,6 +37,7 @@ const photos = await response.json();
 
 if (urlParams['p']) {
   await renderContent(await getPhotoView(photos, urlParams['p']));
+  await initializeSwiper();
 } else {
   await renderContent(await getPhotosGallery(photos));
 }
