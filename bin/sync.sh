@@ -11,4 +11,4 @@ if [[ -z "$SLOWGRAM_S3_SOURCE_PATH" ]]; then
 fi
 
 echo "Syncing with S3 bucket"
-aws s3 sync "$SLOWGRAM_S3_SOURCE_PATH" "s3://$SLOW_GRAM_BUCKET_NAME" --delete
+aws s3 sync "$SLOWGRAM_S3_SOURCE_PATH" "s3://$SLOW_GRAM_BUCKET_NAME" --delete --size-only
