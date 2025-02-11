@@ -1,4 +1,6 @@
-self.addEventListener('install', (event) => {
+/* eslint-disable no-restricted-globals */
+
+self.addEventListener('install', () => {
   // Perform install steps
 });
 

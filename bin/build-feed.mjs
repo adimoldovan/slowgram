@@ -1,13 +1,51 @@
+/* eslint-disable no-console */
+
 import fs from 'fs';
 import path from 'path';
 import exiftool from 'node-exiftool';
 import exiftoolBin from 'dist-exiftool';
-import config from '../config.json' assert { type: 'json' };
 import imagemin from 'imagemin';
 import webp from 'imagemin-webp';
 import sharp from 'sharp';
+import config from '../config.json';
 
 const sizes = [320, 480, 600, 800, 1080];
+
+async function getExifData(filePath) {
+  let data;
+  const ep = new exiftool.ExiftoolProcess(exiftoolBin);
+  await ep.open();
+
+  try {
+    data = await ep.readMetadata(filePath, ['-File:all']);
+  } catch (error) {
+    console.error(error);
+  }
+  await ep.close();
+  return data.data[0];
+}
+
+function clearDir(dir) {
+  fs.rmSync(dir, {
+    recursive: true,
+    force: true,
+  });
+  fs.mkdirSync(dir, { recursive: true });
+}
+
+async function convertImageToWebp(dir, fileName) {
+  try {
+    await imagemin([`${dir}/${fileName}`], {
+      destination: dir,
+      plugins: [
+        webp({ quality: 80 }),
+      ],
+    });
+  } catch (error) {
+    console.log('');
+    throw new Error(`Error converting ${fileName} to .webp: ${error}`);
+  }
+}
 
 async function run() {
   console.log();
@@ -17,7 +55,7 @@ async function run() {
 
   console.log(`➤ Finding images in ${photosDir}`);
   const files = fs.readdirSync(photosDir);
-  const imageFiles = files.filter(file => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file)));
+  const imageFiles = files.filter((file) => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file)));
   const images = [];
 
   console.log(`➤ Clearing ${outputDir} folder...`);
@@ -58,7 +96,7 @@ async function run() {
     const originalWidth = data.ImageSize.split('x')[0];
     image.src = {
       path: `${config.feed.photos}/${parsedPath.name}`,
-      set: []
+      set: [],
     };
 
     const setPath = `${outputDir}/${parsedPath.name}`;
@@ -69,7 +107,7 @@ async function run() {
       if (targetWidth <= originalWidth) {
         process.stdout.write(`  ➤ ${progress}: resizing to ${originalWidth}w                \r`);
 
-        let targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
+        const targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
         const targetFilePath = `${setPath}/${targetFileName}`;
 
         await sharp(filePath)
@@ -107,41 +145,5 @@ async function run() {
   console.log(`✅ Feed saved as ${feedFilePath}.`);
 }
 
-async function getExifData(filePath) {
-  let data;
-  const ep = new exiftool.ExiftoolProcess(exiftoolBin);
-  await ep.open();
-
-  try {
-    data = await ep.readMetadata(filePath, ['-File:all']);
-  } catch (error) {
-    console.error(error);
-  }
-  await ep.close();
-  return data.data[0];
-}
-
-function clearDir(dir) {
-  fs.rmSync(dir, {
-    recursive: true,
-    force: true
-  });
-  fs.mkdirSync(dir, { recursive: true });
-}
-
-async function convertImageToWebp(dir, fileName) {
-  try {
-    await imagemin([`${dir}/${fileName}`], {
-      destination: dir,
-      plugins: [
-        webp({ quality: 80 })
-      ]
-    });
-  } catch (error) {
-    console.log('');
-    throw new Error(`Error converting ${fileName} to .webp: ${error}`);
-  }
-}
-
 await run();
-console.log(`✅ All done!`);
+console.log('✅ All done!');

@@ -1,3 +1,5 @@
+/* eslint-disable no-console */
+
 import getHeader from './header';
 import getFooter from './footer';
 import getPhotosGallery from './photos';
