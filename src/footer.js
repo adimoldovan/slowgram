@@ -2,7 +2,7 @@ import './style.css';
 import config from '../config.json';
 import icons from './icons';
 
-export function getFooter() {
+export default function getFooter() {
   // region footer
   const footer = document.createElement('footer');
   const footerContainer = document.createElement('div');

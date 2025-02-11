@@ -1,8 +1,7 @@
 import './style.css';
-import './style.css';
 import config from '../config.json';
 
-export async function getPhotosGallery() {
+export default async function getPhotosGallery() {
   // region gallery
   const container = document.createElement('div');
   container.className = 'container';
@@ -84,4 +83,3 @@ export async function getPhotosGallery() {
   return container;
   // endregion
 }
-

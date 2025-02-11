@@ -1,6 +1,6 @@
-import { getHeader } from './header';
-import { getFooter } from './footer';
-import { getPhotosGallery } from './photos';
+import getHeader from './header';
+import getFooter from './footer';
+import getPhotosGallery from './photos';
 
 document.body.appendChild(getHeader());
 const main = document.createElement('main');

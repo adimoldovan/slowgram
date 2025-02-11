@@ -11,7 +11,6 @@ self.addEventListener('fetch', (event) => {
           return response;
         }
         return fetch(event.request);
-      }
-    )
+      }),
   );
 });

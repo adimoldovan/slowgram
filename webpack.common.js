@@ -1,8 +1,8 @@
 const path = require('path');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const manifest = require('./manifest.json');
 const WorkboxPlugin = require('workbox-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
+const manifest = require('./manifest.json');
 
 module.exports = {
   entry: { index: './src/index.js' },
@@ -23,13 +23,13 @@ module.exports = {
       patterns: [
         {
           from: 'manifest.json',
-          to: 'manifest.json'
+          to: 'manifest.json',
         },
         {
           from: 'src/assets/icons',
-          to: '.'
-        }
-      ]
+          to: '.',
+        },
+      ],
     }),
   ],
   output: {
