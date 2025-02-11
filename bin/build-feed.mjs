@@ -7,7 +7,7 @@ import exiftoolBin from 'dist-exiftool';
 import imagemin from 'imagemin';
 import webp from 'imagemin-webp';
 import sharp from 'sharp';
-import config from '../config.json';
+import config from '../config.json' assert { type: 'json' };
 
 const sizes = [320, 480, 600, 800, 1080];
 

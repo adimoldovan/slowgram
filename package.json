@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "description": "an alternative to posting on instagram. add a photo once in a while, no stories, no likes, no comments, no ads, no tracking, no algorithms, no notifications, no pressure. just a photo.",
   "scripts": {
+    "clean:dist": "rm -rf dist",
+    "clean:deps": "rm -rf node_modules",
     "test": "echo \"Error: no test specified\" && exit 1",
     "server": "http-server dist",
-    "build": "webpack --config webpack.prod.js",
-    "lint": "eslint ."
+    "build": "webpack --config webpack.config.js",
+    "lint": "eslint .",
+    "watch:build": "chokidar 'src/**/*' -c 'npm run build'"
   },
   "repository": {
     "type": "git",
@@ -19,12 +22,14 @@
   },
   "homepage": "https://github.com/adimoldovan/slowgram",
   "devDependencies": {
-    "@aws-sdk/client-s3": "^3.744.0",
+    "chokidar-cli": "^3.0.0",
+    "copy-webpack-plugin": "^12.0.2",
     "css-loader": "^7.1.2",
     "dist-exiftool": "^10.53.0",
     "eslint": "^8.2.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-plugin-import": "^2.29.1",
+    "html-webpack-plugin": "^5.6.0",
     "http-server": "^14.1.1",
     "imagemin": "^9.0.0",
     "imagemin-webp": "^8.0.0",
@@ -32,11 +37,7 @@
     "sharp": "^0.33.5",
     "style-loader": "^4.0.0",
     "webpack": "^5.94.0",
-    "webpack-cli": "^5.1.4",
-    "webpack-dev-server": "^5.0.4",
-    "copy-webpack-plugin": "^12.0.2",
-    "html-webpack-plugin": "^5.6.0",
-    "webpack-merge": "^5.10.0",
+    "webpack-cli": "^6.0.1",
     "workbox-webpack-plugin": "^7.1.0"
   }
 }

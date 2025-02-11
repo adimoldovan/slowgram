@@ -5,6 +5,7 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const manifest = require('./manifest.json');
 
 module.exports = {
+  mode: 'production',
   entry: { index: './src/index.js' },
   plugins: [
     new HtmlWebpackPlugin({
