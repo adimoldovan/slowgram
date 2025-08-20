@@ -7,7 +7,8 @@ import exiftoolBin from 'dist-exiftool';
 import imagemin from 'imagemin';
 import webp from 'imagemin-webp';
 import sharp from 'sharp';
-import config from '../config.json' assert { type: 'json' };
+
+const config = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf-8'));
 
 const sizes = [320, 480, 600, 800, 1080];
 
