@@ -138,12 +138,15 @@ header {
 .lightbox img {
     position: fixed;
     padding: 0;
-    max-height: 95%;
-    max-width: 95%;
+    width: auto;
+    height: auto;
+    max-height: min(95vh, 100%);
+    max-width: min(95vw, 100%);
     top: 50%;
     left: 50%;
     margin: 0 -50% 0 0;
     transform: translate(-50%, -50%);
+    object-fit: contain;
 }
 
 a.slideshow-nav {

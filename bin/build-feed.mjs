@@ -10,7 +10,7 @@ import sharp from 'sharp';
 
 const config = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf-8'));
 
-const sizes = [320, 480, 600, 800, 1080];
+const sizes = [320, 480, 600, 800, 1080, 1440, 1920, 2560];
 
 async function getExifData(filePath) {
   let data;
@@ -106,13 +106,13 @@ async function run() {
 
     for (const targetWidth of sizes) {
       if (targetWidth <= originalWidth) {
-        process.stdout.write(`  ➤ ${progress}: resizing to ${originalWidth}w                \r`);
+        process.stdout.write(`  ➤ ${progress}: resizing to ${targetWidth}w                \r`);
 
         const targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
         const targetFilePath = `${setPath}/${targetFileName}`;
 
         await sharp(filePath)
-          .resize(targetWidth)
+          .resize(targetWidth, null, { withoutEnlargement: true })
           .toFile(targetFilePath);
 
         // Convert to webp
