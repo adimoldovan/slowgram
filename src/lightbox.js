@@ -1,3 +1,16 @@
+// Animation timing constants
+const TRANSITION_FAST = '0.3s';
+const TRANSITION_SLOW = '0.5s';
+const TRANSITION_EASING = 'ease-out';
+const SWIPE_TRANSITION_FAST = `transform ${TRANSITION_FAST} ${TRANSITION_EASING}, opacity ${TRANSITION_FAST} ${TRANSITION_EASING}`;
+const SWIPE_TRANSITION_SLOW = `transform ${TRANSITION_SLOW} ${TRANSITION_EASING}, opacity ${TRANSITION_SLOW} ${TRANSITION_EASING}`;
+
+// Swipe detection constants
+const MIN_SWIPE_DISTANCE = 50;
+const MAX_VERTICAL_DISTANCE = 100;
+const OPACITY_DRAG_DIVISOR = 300;
+const MIN_OPACITY = 0.3;
+
 export function createLightbox(photo, index, photos) {
   const nextPhotoId = (index + 1) % photos.length;
   const prevPhotoId = (index - 1 + photos.length) % photos.length;
@@ -67,10 +80,9 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
   let isDragging = false;
   let currentX = 0;
   let currentY = 0;
-  const minSwipeDistance = 50;
 
   // Add transition for smooth animations
-  lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+  lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
   // Prevent default touch behaviors
   lightboxImg.style.touchAction = 'none';
 
@@ -83,20 +95,20 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
     lightboxImg.style.opacity = '1';
 
     // Check for swipe up to close (negative Y means up)
-    if (swipeDistanceY < -minSwipeDistance && Math.abs(swipeDistanceX) < 100) {
+    if (swipeDistanceY < -MIN_SWIPE_DISTANCE && Math.abs(swipeDistanceX) < MAX_VERTICAL_DISTANCE) {
       // Animate out before closing
-      lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+      lightboxImg.style.transition = SWIPE_TRANSITION_SLOW;
       lightboxImg.style.transform = 'translate(-50%, -150%)';
       lightboxImg.style.opacity = '0';
-      
+
       setTimeout(() => {
         window.location.hash = `#p${index}`;
-      }, 300);
+      }, parseInt(TRANSITION_SLOW) * 1000);
       return;
     }
 
     // Process horizontal swipes for navigation
-    if (Math.abs(swipeDistanceX) > minSwipeDistance && Math.abs(swipeDistanceY) < 100) {
+    if (Math.abs(swipeDistanceX) > MIN_SWIPE_DISTANCE && Math.abs(swipeDistanceY) < MAX_VERTICAL_DISTANCE) {
       let targetIndex;
       let direction;
 
@@ -110,8 +122,8 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
         direction = 'left';
       }
 
-      // Animate out
-      lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+      // Animate out (faster for horizontal swipes)
+      lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
       if (direction === 'left') {
         lightboxImg.style.transform = 'translate(-150%, -50%)';
       } else {
@@ -121,7 +133,7 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
 
       setTimeout(() => {
         window.location.hash = `#lightbox-${targetIndex}`;
-      }, 300);
+      }, parseInt(TRANSITION_FAST) * 1000);
     }
   };
 
@@ -137,7 +149,7 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
     
     // Adjust opacity based on drag distance
     const dragDistance = Math.sqrt(currentX * currentX + currentY * currentY);
-    const opacity = Math.max(0.3, 1 - dragDistance / 300);
+    const opacity = Math.max(MIN_OPACITY, 1 - dragDistance / OPACITY_DRAG_DIVISOR);
     lightboxImg.style.opacity = opacity;
   };
 
@@ -154,14 +166,14 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
     touchEndX = e.changedTouches[0].clientX;
     touchEndY = e.changedTouches[0].clientY;
     isDragging = false;
-    lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+    lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
     handleSwipe();
   }, { passive: true });
 
   // Handle touch cancel
   lightboxImg.addEventListener('touchcancel', () => {
     isDragging = false;
-    lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+    lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
     lightboxImg.style.transform = 'translate(-50%, -50%)';
     lightboxImg.style.opacity = '1';
   }, { passive: true });
@@ -188,7 +200,7 @@ export function setupLightboxLazyLoading() {
       // eslint-disable-next-line no-param-reassign
       lightboxImg.onload = () => {
         // eslint-disable-next-line no-param-reassign
-        lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+        lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
         // eslint-disable-next-line no-param-reassign
         lightboxImg.style.opacity = '1';
         // eslint-disable-next-line no-param-reassign
@@ -212,7 +224,7 @@ export function setupLightboxLazyLoading() {
 
         // Reset any existing transforms for returning to an already loaded image
         if (img.src) {
-          img.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+          img.style.transition = SWIPE_TRANSITION_FAST;
           img.style.opacity = '1';
           img.style.transform = 'translate(-50%, -50%)';
         }
