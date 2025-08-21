@@ -13,6 +13,7 @@ export function createLightbox(photo, index, photos) {
   const lightbox = document.createElement('div');
   lightbox.className = 'lightbox';
   lightbox.id = `lightbox-${index}`;
+  lightbox.style.touchAction = 'none';
 
   const lightboxImg = document.createElement('img');
   lightboxImg.dataset.src = imageSrc;
@@ -70,6 +71,8 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
 
   // Add transition for smooth animations
   lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+  // Prevent default touch behaviors
+  lightboxImg.style.touchAction = 'none';
 
   const handleSwipe = () => {
     const swipeDistanceX = touchEndX - touchStartX;
@@ -197,6 +200,11 @@ export function setupLightboxLazyLoading() {
   const handleHashChange = () => {
     const { hash } = window.location;
     if (hash.startsWith('#lightbox-')) {
+      // Prevent body scroll when lightbox is open
+      document.body.style.overflow = 'hidden';
+      document.body.style.position = 'fixed';
+      document.body.style.width = '100%';
+      
       const lightbox = document.querySelector(hash);
       if (lightbox) {
         const img = lightbox.querySelector('img');
@@ -209,6 +217,11 @@ export function setupLightboxLazyLoading() {
           img.style.transform = 'translate(-50%, -50%)';
         }
       }
+    } else {
+      // Re-enable body scroll when lightbox is closed
+      document.body.style.overflow = '';
+      document.body.style.position = '';
+      document.body.style.width = '';
     }
   };
 
