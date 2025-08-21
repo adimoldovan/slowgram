@@ -63,43 +63,104 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
   let touchStartY = 0;
   let touchEndX = 0;
   let touchEndY = 0;
+  let isDragging = false;
+  let currentX = 0;
+  let currentY = 0;
   const minSwipeDistance = 50;
+
+  // Add transition for smooth animations
+  lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
 
   const handleSwipe = () => {
     const swipeDistanceX = touchEndX - touchStartX;
     const swipeDistanceY = touchEndY - touchStartY;
 
+    // Reset transform after swipe
+    lightboxImg.style.transform = 'translate(-50%, -50%)';
+    lightboxImg.style.opacity = '1';
+
     // Check for swipe up to close (negative Y means up)
     if (swipeDistanceY < -minSwipeDistance && Math.abs(swipeDistanceX) < 100) {
-      window.location.hash = `#p${index}`;
+      // Animate out before closing
+      lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+      lightboxImg.style.transform = 'translate(-50%, -150%)';
+      lightboxImg.style.opacity = '0';
+      
+      setTimeout(() => {
+        window.location.hash = `#p${index}`;
+      }, 300);
       return;
     }
 
     // Process horizontal swipes for navigation
     if (Math.abs(swipeDistanceX) > minSwipeDistance && Math.abs(swipeDistanceY) < 100) {
       let targetIndex;
+      let direction;
 
       if (swipeDistanceX > 0) {
         // Swipe right - go to previous image
         targetIndex = (index - 1 + photosLength) % photosLength;
+        direction = 'right';
       } else {
         // Swipe left - go to next image
         targetIndex = (index + 1) % photosLength;
+        direction = 'left';
       }
 
-      window.location.hash = `#lightbox-${targetIndex}`;
+      // Animate out
+      lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+      if (direction === 'left') {
+        lightboxImg.style.transform = 'translate(-150%, -50%)';
+      } else {
+        lightboxImg.style.transform = 'translate(50%, -50%)';
+      }
+      lightboxImg.style.opacity = '0';
+
+      setTimeout(() => {
+        window.location.hash = `#lightbox-${targetIndex}`;
+      }, 300);
     }
+  };
+
+  const handleTouchMove = (e) => {
+    if (!isDragging) return;
+    
+    currentX = e.changedTouches[0].clientX - touchStartX;
+    currentY = e.changedTouches[0].clientY - touchStartY;
+    
+    // Apply real-time transform while dragging
+    lightboxImg.style.transition = 'none';
+    lightboxImg.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
+    
+    // Adjust opacity based on drag distance
+    const dragDistance = Math.sqrt(currentX * currentX + currentY * currentY);
+    const opacity = Math.max(0.3, 1 - dragDistance / 300);
+    lightboxImg.style.opacity = opacity;
   };
 
   lightboxImg.addEventListener('touchstart', (e) => {
     touchStartX = e.changedTouches[0].clientX;
     touchStartY = e.changedTouches[0].clientY;
+    isDragging = true;
+    lightboxImg.style.transition = 'none';
   }, { passive: true });
+
+  lightboxImg.addEventListener('touchmove', handleTouchMove, { passive: true });
 
   lightboxImg.addEventListener('touchend', (e) => {
     touchEndX = e.changedTouches[0].clientX;
     touchEndY = e.changedTouches[0].clientY;
+    isDragging = false;
+    lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
     handleSwipe();
+  }, { passive: true });
+
+  // Handle touch cancel
+  lightboxImg.addEventListener('touchcancel', () => {
+    isDragging = false;
+    lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+    lightboxImg.style.transform = 'translate(-50%, -50%)';
+    lightboxImg.style.opacity = '1';
   }, { passive: true });
 }
 
@@ -107,12 +168,29 @@ export function setupLightboxLazyLoading() {
   const loadLightboxImage = (lightboxImg) => {
     const { dataset } = lightboxImg;
     if (!lightboxImg.src && dataset.src) {
+      // Prepare for entrance animation
+      // eslint-disable-next-line no-param-reassign
+      lightboxImg.style.opacity = '0';
+      // eslint-disable-next-line no-param-reassign
+      lightboxImg.style.transform = 'translate(-50%, -50%) scale(0.9)';
+
       // eslint-disable-next-line no-param-reassign
       lightboxImg.src = dataset.src;
       // eslint-disable-next-line no-param-reassign
       lightboxImg.srcset = dataset.srcset;
       // eslint-disable-next-line no-param-reassign
       lightboxImg.sizes = dataset.sizes;
+
+      // Animate entrance when image loads
+      // eslint-disable-next-line no-param-reassign
+      lightboxImg.onload = () => {
+        // eslint-disable-next-line no-param-reassign
+        lightboxImg.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+        // eslint-disable-next-line no-param-reassign
+        lightboxImg.style.opacity = '1';
+        // eslint-disable-next-line no-param-reassign
+        lightboxImg.style.transform = 'translate(-50%, -50%) scale(1)';
+      };
     }
   };
 
@@ -123,6 +201,13 @@ export function setupLightboxLazyLoading() {
       if (lightbox) {
         const img = lightbox.querySelector('img');
         loadLightboxImage(img);
+
+        // Reset any existing transforms for returning to an already loaded image
+        if (img.src) {
+          img.style.transition = 'transform 0.3s ease-out, opacity 0.3s ease-out';
+          img.style.opacity = '1';
+          img.style.transform = 'translate(-50%, -50%)';
+        }
       }
     }
   };
