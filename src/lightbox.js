@@ -74,7 +74,7 @@ export function createLightbox(photo, index, photos) {
   return { lightbox, lightboxImg };
 }
 
-export function addSwipeGestures(lightboxImg, index, photosLength) {
+export function addSwipeGestures(lightboxImg, index) {
   let touchStartX = 0;
   let touchStartY = 0;
   let touchEndX = 0;
@@ -119,16 +119,26 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
       Math.abs(swipeDistanceX) > MIN_SWIPE_DISTANCE &&
       Math.abs(swipeDistanceY) < MAX_VERTICAL_DISTANCE
     ) {
+      // Get visible photo indices from global state
+      const visibleIndices = window.visiblePhotoIndices || [];
+      if (visibleIndices.length === 0) return;
+      
+      // Find current index in visible array
+      const currentVisibleIndex = visibleIndices.indexOf(index);
+      if (currentVisibleIndex === -1) return;
+      
       let targetIndex;
       let direction;
 
       if (swipeDistanceX > 0) {
         // Swipe right - go to previous image
-        targetIndex = (index - 1 + photosLength) % photosLength;
+        const prevVisibleIndex = (currentVisibleIndex - 1 + visibleIndices.length) % visibleIndices.length;
+        targetIndex = visibleIndices[prevVisibleIndex];
         direction = 'right';
       } else {
         // Swipe left - go to next image
-        targetIndex = (index + 1) % photosLength;
+        const nextVisibleIndex = (currentVisibleIndex + 1) % visibleIndices.length;
+        targetIndex = visibleIndices[nextVisibleIndex];
         direction = 'left';
       }
 
