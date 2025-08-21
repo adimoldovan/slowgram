@@ -43,11 +43,11 @@ export default async function getPhotosGallery() {
   const response = await fetch(config.feed.url);
   const photos = await response.json();
 
-  // Extract all unique colors from photos
+  // Extract all unique colors from photos (now handling objects with color and population)
   const allColors = [...new Set(
     photos
       .filter(photo => photo.colors && Array.isArray(photo.colors))
-      .flatMap(photo => photo.colors)
+      .flatMap(photo => photo.colors.map(colorObj => colorObj.color))
   )].filter(Boolean);
   
 
@@ -110,8 +110,8 @@ export default async function getPhotosGallery() {
     link.id = `p${index}`;
     link.href = `#lightbox-${index}`;
     link.className = 'gallery-item';
-    // Store colors data for filtering
-    link.dataset.colors = (photo.colors || []).join(',');
+    // Store colors data for filtering (extract color names from objects)
+    link.dataset.colors = (photo.colors || []).map(colorObj => colorObj.color).join(',');
 
     // Get the smallest size for gallery thumbnail
     const minSize = photo.src.set[0].split(' ')[0];

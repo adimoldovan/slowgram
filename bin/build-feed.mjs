@@ -9,6 +9,55 @@ import webp from 'imagemin-webp';
 import sharp from 'sharp';
 import { Vibrant } from 'node-vibrant/node';
 
+function parseArgs() {
+  const args = process.argv.slice(2);
+  const flags = {
+    skipConvert: false,
+    skipResize: false,
+    help: false,
+  };
+
+  args.forEach(arg => {
+    switch (arg) {
+      case '--skip-convert':
+        flags.skipConvert = true;
+        break;
+      case '--skip-resize':
+        flags.skipResize = true;
+        break;
+      case '--help':
+      case '-h':
+        flags.help = true;
+        break;
+      default:
+        if (arg.startsWith('--')) {
+          console.warn(`Unknown flag: ${arg}`);
+        }
+        break;
+    }
+  });
+
+  return flags;
+}
+
+function showHelp() {
+  console.log(`
+Usage: node build-feed.mjs [options]
+
+Options:
+  --skip-convert    Skip WebP conversion of images (preserves existing files)
+  --skip-resize     Skip resizing of images (preserves existing files)
+  --help, -h        Show this help message
+
+Note: When skip flags are used, existing files in the output directory are preserved.
+      Only when no skip flags are used will the output directory be cleared.
+
+Environment Variables:
+  SLOWGRAM_SOURCE_PATH     Path to source images directory
+  SLOWGRAM_S3_SOURCE_PATH  Path to output directory
+`);
+}
+
 const config = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf-8'));
 
 const sizes = [320, 480, 600, 800, 1080, 1440, 1920, 2560];
@@ -21,9 +70,16 @@ async function getExifData(filePath) {
   try {
     data = await ep.readMetadata(filePath, ['-File:all']);
   } catch (error) {
-    console.error(error);
+    console.error(`Error reading EXIF data from ${filePath}:`, error.message);
+    throw error;
+  } finally {
+    await ep.close();
   }
-  await ep.close();
+  
+  if (!data || !data.data || !data.data[0]) {
+    throw new Error(`No EXIF data found in ${filePath}`);
+  }
+  
   return data.data[0];
 }
 
@@ -44,15 +100,14 @@ async function convertImageToWebp(dir, fileName) {
       ],
     });
   } catch (error) {
-    console.log('');
-    throw new Error(`Error converting ${fileName} to .webp: ${error}`);
+    console.error(`\nError converting ${fileName} to .webp:`, error.message);
+    throw error;
   }
 }
 
-function getRainbowColor(rgb) {
+function getColor(rgb) {
   const [r, g, b] = rgb;
   
-  // Define rainbow color ranges
   const colors = [
     { name: 'red', range: [0, 25], check: (h, s, l) => (h >= 345 || h <= 15) && s >= 30 && l >= 20 && l <= 80 },
     { name: 'orange', range: [15, 45], check: (h, s, l) => h >= 15 && h <= 45 && s >= 40 && l >= 25 && l <= 75 },
@@ -88,6 +143,9 @@ function getRainbowColor(rgb) {
       case bNorm:
         h = ((rNorm - gNorm) / diff + 4) / 6;
         break;
+      default:
+        h = 0;
+        break;
     }
   }
   
@@ -97,17 +155,14 @@ function getRainbowColor(rgb) {
   
   // Check if it's grayscale
   if (s < 15 || lPercent < 15 || lPercent > 85) {
-    return lPercent < 30 ? 'black' : lPercent > 70 ? 'white' : 'gray';
+    if (lPercent < 30) return 'black';
+    if (lPercent > 70) return 'white';
+    return 'gray';
   }
   
-  // Find matching rainbow color
-  for (const color of colors) {
-    if (color.check(h, s, lPercent)) {
-      return color.name;
-    }
-  }
-  
-  return 'gray';
+  // Find matching color
+  const matchingColor = colors.find(color => color.check(h, s, lPercent));
+  return matchingColor ? matchingColor.name : 'gray';
 }
 
 async function extractColors(filePath) {
@@ -115,18 +170,32 @@ async function extractColors(filePath) {
     const palette = await Vibrant.from(filePath).getPalette();
     const colorCounts = {};
     
-    for (const [name, swatch] of Object.entries(palette)) {
-      if (swatch) {
-        const rainbowColor = getRainbowColor(swatch.rgb);
-        colorCounts[rainbowColor] = (colorCounts[rainbowColor] || 0) + swatch.population;
-      }
-    }
+    const swatchesToProcess = [
+      palette.Vibrant, 
+      palette.Muted, 
+      palette.DarkVibrant, 
+      palette.DarkMuted, 
+      palette.LightVibrant, 
+      palette.LightMuted
+    ];
     
-    // Return top 3 dominant colors
+    swatchesToProcess.forEach((swatch) => {
+      if (swatch) {
+        const color = getColor(swatch.rgb);
+        colorCounts[color] = (colorCounts[color] || 0) + swatch.population;
+      }
+    });
+    
+    // Calculate total population for percentage conversion
+    const totalPopulation = Object.values(colorCounts).reduce((sum, pop) => sum + pop, 0);
+    
     return Object.entries(colorCounts)
       .sort(([,a], [,b]) => b - a)
-      .slice(0, 3)
-      .map(([color]) => color);
+      .map(([color, population]) => ({ 
+        color, 
+        population: Math.round((population / totalPopulation) * 100)
+      }));
+
   } catch (error) {
     console.error(`Error extracting colors from ${filePath}:`, error);
     return [];
@@ -136,26 +205,70 @@ async function extractColors(filePath) {
 async function run() {
   console.log();
 
+  const flags = parseArgs();
+  
+  if (flags.help) {
+    showHelp();
+    return;
+  }
+
   const photosDir = process.env.SLOWGRAM_SOURCE_PATH;
   const outputDir = process.env.SLOWGRAM_S3_SOURCE_PATH;
 
+  if (!photosDir) {
+    throw new Error('SLOWGRAM_SOURCE_PATH environment variable is required');
+  }
+  
+  if (!outputDir) {
+    throw new Error('SLOWGRAM_S3_SOURCE_PATH environment variable is required');
+  }
+
+  if (!fs.existsSync(photosDir)) {
+    throw new Error(`Source directory does not exist: ${photosDir}`);
+  }
+
   console.log(`➤ Finding images in ${photosDir}`);
   const files = fs.readdirSync(photosDir);
-  const imageFiles = files.filter((file) => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file)));
+  const imageFiles = files.filter((file) => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file).toLowerCase()));
+  
+  if (imageFiles.length === 0) {
+    console.log('No image files found in source directory');
+    return;
+  }
+  
+  console.log(`➤ Found ${imageFiles.length} image files`);
+  
+  // Show active flags
+  const activeFlags = [];
+  if (flags.skipResize) activeFlags.push('skip-resize');
+  if (flags.skipConvert) activeFlags.push('skip-convert');
+  if (activeFlags.length > 0) {
+    console.log(`➤ Active flags: ${activeFlags.join(', ')}`);
+  }
+  
   const images = [];
 
-  console.log(`➤ Clearing ${outputDir} folder...`);
-  clearDir(outputDir);
+  if (!flags.skipResize && !flags.skipConvert) {
+    console.log(`➤ Clearing ${outputDir} folder...`);
+    clearDir(outputDir);
+  } else {
+    console.log(`➤ Preserving existing files in ${outputDir} folder...`);
+    // Ensure output directory exists
+    if (!fs.existsSync(outputDir)) {
+      fs.mkdirSync(outputDir, { recursive: true });
+    }
+  }
 
   console.log('➤ Processing images...');
-  for (let i = 0; i < imageFiles.length; i++) {
-    const file = imageFiles[i];
-    const progress = `${Math.round((i / imageFiles.length) * 100)}% ${file}`;
+  
+  async function processImage(file, index) {
+    const progress = `${Math.round((index / imageFiles.length) * 100)}% ${file}`;
     const image = {};
 
-    process.stdout.write(`  ➤ ${progress}: getting EXIF data\r`);
-    const filePath = `${photosDir}/${file}`;
-    const data = await getExifData(filePath);
+    try {
+      process.stdout.write(`  ➤ ${progress}: getting EXIF data\r`);
+      const filePath = `${photosDir}/${file}`;
+      const data = await getExifData(filePath);
 
     // Get the date taken in timestamp and original format
     const dateParts = data.DateTimeOriginal.split(' ');
@@ -189,39 +302,83 @@ async function run() {
       set: [],
     };
 
-    const setPath = `${outputDir}/${parsedPath.name}`;
-    clearDir(setPath);
-    let lastSize = 0;
+    if (flags.skipResize && flags.skipConvert) {
+      // Skip all processing, just copy original file
+      process.stdout.write(`  ➤ ${progress}: copying original file                \r`);
+      const setPath = `${outputDir}/${parsedPath.name}`;
+      if (!fs.existsSync(setPath)) {
+        fs.mkdirSync(setPath, { recursive: true });
+      }
+      const originalFileName = `${parsedPath.name}${parsedPath.ext}`;
+      fs.copyFileSync(filePath, `${setPath}/${originalFileName}`);
+      image.src.set.push(`${originalFileName} ${originalWidth}w`);
+      image.src.src = originalFileName;
+    } else {
+      const setPath = `${outputDir}/${parsedPath.name}`;
+      if (!flags.skipResize && !flags.skipConvert) {
+        clearDir(setPath);
+      } else if (!fs.existsSync(setPath)) {
+        // Preserve existing files, just ensure directory exists
+        fs.mkdirSync(setPath, { recursive: true });
+      }
+      let lastSize = 0;
 
-    for (const targetWidth of sizes) {
-      if (targetWidth <= originalWidth) {
-        process.stdout.write(`  ➤ ${progress}: resizing to ${targetWidth}w                \r`);
-
+      const validSizes = sizes.filter(targetWidth => targetWidth <= originalWidth);
+      
+      await Promise.all(validSizes.map(async (targetWidth) => {
         const targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
         const targetFilePath = `${setPath}/${targetFileName}`;
+        let finalFileName = targetFileName;
 
-        await sharp(filePath)
-          .resize(targetWidth, null, { withoutEnlargement: true })
-          .toFile(targetFilePath);
+        if (!flags.skipResize) {
+          process.stdout.write(`  ➤ ${progress}: resizing to ${targetWidth}w                \r`);
+          await sharp(filePath)
+            .resize(targetWidth, null, { withoutEnlargement: true })
+            .toFile(targetFilePath);
+        } else {
+          // Skip resize, just copy original
+          process.stdout.write(`  ➤ ${progress}: copying original to ${targetWidth}w slot                \r`);
+          fs.copyFileSync(filePath, targetFilePath);
+        }
 
-        // Convert to webp
-        process.stdout.write(`  ➤ ${progress}: Converting ${targetFileName} to .webp        \r`);
-        await convertImageToWebp(setPath, targetFileName);
-        const convertedFileName = `${parsedPath.name}-${targetWidth}w.webp`;
+        if (!flags.skipConvert) {
+          // Convert to webp
+          process.stdout.write(`  ➤ ${progress}: Converting ${targetFileName} to .webp        \r`);
+          await convertImageToWebp(setPath, targetFileName);
+          const convertedFileName = `${parsedPath.name}-${targetWidth}w.webp`;
+          finalFileName = convertedFileName;
+          
+          // Remove the original (jpg) file
+          fs.rmSync(targetFilePath);
+        }
 
-        image.src.set.push(`${convertedFileName} ${targetWidth}w`);
-
-        // Remove the original (jpg) file
-        fs.rmSync(targetFilePath);
+        image.src.set.push(`${finalFileName} ${targetWidth}w`);
 
         if (targetWidth > lastSize) {
           lastSize = targetWidth;
-          image.src.src = convertedFileName;
+          image.src.src = finalFileName;
         }
-      }
+      }));
     }
 
-    images.push(image);
+      return image;
+    } catch (error) {
+      console.error(`\n❌ Error processing ${file}:`, error.message);
+      return null;
+    }
+  }
+
+  const processedImages = await Promise.all(
+    imageFiles.map((file, index) => processImage(file, index))
+  );
+  
+  // Filter out failed images
+  const validImages = processedImages.filter(img => img !== null);
+  images.push(...validImages);
+  
+  if (validImages.length < processedImages.length) {
+    const failedCount = processedImages.length - validImages.length;
+    console.log(`\n⚠️  ${failedCount} image(s) failed to process`);
   }
 
   console.log(''.padStart(200, ' '));
@@ -231,9 +388,14 @@ async function run() {
   console.log('✅ Sorted by date taken.');
 
   const feedFilePath = `${outputDir}/feed.json`;
-  fs.writeFileSync(feedFilePath, JSON.stringify(images));
+  fs.writeFileSync(feedFilePath, JSON.stringify(images, null, 2));
   console.log(`✅ Feed saved as ${feedFilePath}.`);
 }
 
-await run();
-console.log('✅ All done!');
+try {
+  await run();
+  console.log('✅ All done!');
+} catch (error) {
+  console.error('\n❌ Build failed:', error.message);
+  process.exit(1);
+}
