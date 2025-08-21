@@ -245,13 +245,21 @@ export function setupLightboxLazyLoading() {
       const lightbox = document.querySelector(hash);
       if (lightbox) {
         const img = lightbox.querySelector('img');
+        
+        // Always reset transforms first to clear any previous exit animations
+        img.style.transition = 'none';
+        img.style.transform = 'translate(-50%, -50%)';
+        img.style.opacity = '1';
+        
+        // Force reflow to ensure the reset is applied immediately
+        // eslint-disable-next-line no-unused-expressions
+        img.offsetHeight;
+        
         loadLightboxImage(img);
 
-        // Reset any existing transforms for returning to an already loaded image
+        // Re-enable transition for future animations
         if (img.src) {
           img.style.transition = SWIPE_TRANSITION_FAST;
-          img.style.opacity = '1';
-          img.style.transform = 'translate(-50%, -50%)';
         }
       }
     } else {
