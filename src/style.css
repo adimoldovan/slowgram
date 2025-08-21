@@ -66,7 +66,8 @@ header p {
         display: grid;
         grid-template-columns: repeat(1, fit-content(390px));
         justify-content: center;
-        grid-gap: 5px;
+        grid-gap: 2px;
+        margin-top: 2vh;
         padding-top: 1vh;
         padding-bottom: 2vh;
     }
