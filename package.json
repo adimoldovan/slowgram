@@ -9,7 +9,9 @@
     "server": "http-server dist -p 8934",
     "build": "webpack --config webpack.config.js",
     "lint": "eslint .",
-    "watch:build": "chokidar 'src/**/*' -c 'npm run build'"
+    "watch:build": "chokidar 'src/**/*' -c 'npm run build'",
+    "format": "prettier --write \"src/**/*.{js,html,css}\"",
+    "format:check": "prettier --check \"src/**/*.{js,html,css}\""
   },
   "repository": {
     "type": "git",
@@ -34,6 +36,7 @@
     "imagemin": "^9.0.0",
     "imagemin-webp": "^8.0.0",
     "node-exiftool": "^2.3.0",
+    "prettier": "^3.6.2",
     "sharp": "^0.33.5",
     "style-loader": "^4.0.0",
     "webpack": "^5.94.0",

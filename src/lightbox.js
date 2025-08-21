@@ -16,10 +16,12 @@ export function createLightbox(photo, index, photos) {
   const prevPhotoId = (index - 1 + photos.length) % photos.length;
 
   const imageSrc = `${photo.src.path}/${photo.src.src}`;
-  const imageSrcSet = photo.src.set.map((pair) => {
-    const parts = pair.split(' ');
-    return `${photo.src.path}/${parts[0]} ${parts[1]}`;
-  }).join(', ');
+  const imageSrcSet = photo.src.set
+    .map((pair) => {
+      const parts = pair.split(' ');
+      return `${photo.src.path}/${parts[0]} ${parts[1]}`;
+    })
+    .join(', ');
 
   const maxWidth = Math.max(...photo.src.set.map((pair) => parseInt(pair.split(' ')[1], 10)));
 
@@ -56,7 +58,7 @@ export function createLightbox(photo, index, photos) {
   lightboxClose.textContent = '×';
 
   // Check if device supports touch
-  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
   if (isTouchDevice) {
     // Hide navigation buttons on touch devices
@@ -101,14 +103,20 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
       lightboxImg.style.transform = 'translate(-50%, -150%)';
       lightboxImg.style.opacity = '0';
 
-      setTimeout(() => {
-        window.location.hash = `#p${index}`;
-      }, parseInt(TRANSITION_SLOW) * 1000);
+      setTimeout(
+        () => {
+          window.location.hash = `#p${index}`;
+        },
+        parseInt(TRANSITION_SLOW) * 1000
+      );
       return;
     }
 
     // Process horizontal swipes for navigation
-    if (Math.abs(swipeDistanceX) > MIN_SWIPE_DISTANCE && Math.abs(swipeDistanceY) < MAX_VERTICAL_DISTANCE) {
+    if (
+      Math.abs(swipeDistanceX) > MIN_SWIPE_DISTANCE &&
+      Math.abs(swipeDistanceY) < MAX_VERTICAL_DISTANCE
+    ) {
       let targetIndex;
       let direction;
 
@@ -131,52 +139,67 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
       }
       lightboxImg.style.opacity = '0';
 
-      setTimeout(() => {
-        window.location.hash = `#lightbox-${targetIndex}`;
-      }, parseInt(TRANSITION_FAST) * 1000);
+      setTimeout(
+        () => {
+          window.location.hash = `#lightbox-${targetIndex}`;
+        },
+        parseInt(TRANSITION_FAST) * 1000
+      );
     }
   };
 
   const handleTouchMove = (e) => {
     if (!isDragging) return;
-    
+
     currentX = e.changedTouches[0].clientX - touchStartX;
     currentY = e.changedTouches[0].clientY - touchStartY;
-    
+
     // Apply real-time transform while dragging
     lightboxImg.style.transition = 'none';
     lightboxImg.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
-    
+
     // Adjust opacity based on drag distance
     const dragDistance = Math.sqrt(currentX * currentX + currentY * currentY);
     const opacity = Math.max(MIN_OPACITY, 1 - dragDistance / OPACITY_DRAG_DIVISOR);
     lightboxImg.style.opacity = opacity;
   };
 
-  lightboxImg.addEventListener('touchstart', (e) => {
-    touchStartX = e.changedTouches[0].clientX;
-    touchStartY = e.changedTouches[0].clientY;
-    isDragging = true;
-    lightboxImg.style.transition = 'none';
-  }, { passive: true });
+  lightboxImg.addEventListener(
+    'touchstart',
+    (e) => {
+      touchStartX = e.changedTouches[0].clientX;
+      touchStartY = e.changedTouches[0].clientY;
+      isDragging = true;
+      lightboxImg.style.transition = 'none';
+    },
+    { passive: true }
+  );
 
   lightboxImg.addEventListener('touchmove', handleTouchMove, { passive: true });
 
-  lightboxImg.addEventListener('touchend', (e) => {
-    touchEndX = e.changedTouches[0].clientX;
-    touchEndY = e.changedTouches[0].clientY;
-    isDragging = false;
-    lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
-    handleSwipe();
-  }, { passive: true });
+  lightboxImg.addEventListener(
+    'touchend',
+    (e) => {
+      touchEndX = e.changedTouches[0].clientX;
+      touchEndY = e.changedTouches[0].clientY;
+      isDragging = false;
+      lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
+      handleSwipe();
+    },
+    { passive: true }
+  );
 
   // Handle touch cancel
-  lightboxImg.addEventListener('touchcancel', () => {
-    isDragging = false;
-    lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
-    lightboxImg.style.transform = 'translate(-50%, -50%)';
-    lightboxImg.style.opacity = '1';
-  }, { passive: true });
+  lightboxImg.addEventListener(
+    'touchcancel',
+    () => {
+      isDragging = false;
+      lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
+      lightboxImg.style.transform = 'translate(-50%, -50%)';
+      lightboxImg.style.opacity = '1';
+    },
+    { passive: true }
+  );
 }
 
 export function setupLightboxLazyLoading() {
@@ -216,7 +239,7 @@ export function setupLightboxLazyLoading() {
       document.body.style.overflow = 'hidden';
       document.body.style.position = 'fixed';
       document.body.style.width = '100%';
-      
+
       const lightbox = document.querySelector(hash);
       if (lightbox) {
         const img = lightbox.querySelector('img');
