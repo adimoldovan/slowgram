@@ -4,7 +4,6 @@ import manifest from '../manifest.json';
 import icons from './icons';
 
 export default function getHeader() {
-  // region header
   const header = document.createElement('header');
 
   const { gravatarHash } = config;
@@ -13,8 +12,7 @@ export default function getHeader() {
   header.appendChild(document.createElement('h1')).textContent = manifest.name;
   header.appendChild(document.createElement('p')).textContent = manifest.description;
 
-  // eslint-disable-next-line no-restricted-syntax
-  for (const account of config.accounts) {
+  config.accounts.forEach((account) => {
     const link = document.createElement('a');
     link.href = account.url;
     link.target = '_blank';
@@ -24,8 +22,7 @@ export default function getHeader() {
     img.alt = account.name;
     link.appendChild(img);
     header.appendChild(link);
-  }
-  // endregion
+  });
 
   return header;
 }
