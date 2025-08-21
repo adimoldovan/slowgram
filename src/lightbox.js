@@ -41,6 +41,15 @@ export function createLightbox(photo, index, photos) {
   lightboxClose.href = `#p${index}`;
   lightboxClose.textContent = '×';
 
+  // Check if device supports touch
+  const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
+  if (isTouchDevice) {
+    // Hide navigation buttons on touch devices
+    lightboxNext.style.display = 'none';
+    lightboxPrev.style.display = 'none';
+  }
+
   lightbox.appendChild(lightboxImg);
   lightbox.appendChild(lightboxNext);
   lightbox.appendChild(lightboxClose);
