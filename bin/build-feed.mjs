@@ -7,6 +7,7 @@ import exiftoolBin from 'dist-exiftool';
 import imagemin from 'imagemin';
 import webp from 'imagemin-webp';
 import sharp from 'sharp';
+import { Vibrant } from 'node-vibrant/node';
 
 const config = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf-8'));
 
@@ -45,6 +46,90 @@ async function convertImageToWebp(dir, fileName) {
   } catch (error) {
     console.log('');
     throw new Error(`Error converting ${fileName} to .webp: ${error}`);
+  }
+}
+
+function getRainbowColor(rgb) {
+  const [r, g, b] = rgb;
+  
+  // Define rainbow color ranges
+  const colors = [
+    { name: 'red', range: [0, 25], check: (h, s, l) => (h >= 345 || h <= 15) && s >= 30 && l >= 20 && l <= 80 },
+    { name: 'orange', range: [15, 45], check: (h, s, l) => h >= 15 && h <= 45 && s >= 40 && l >= 25 && l <= 75 },
+    { name: 'yellow', range: [45, 70], check: (h, s, l) => h >= 45 && h <= 70 && s >= 30 && l >= 30 && l <= 85 },
+    { name: 'green', range: [70, 150], check: (h, s, l) => h >= 70 && h <= 150 && s >= 25 && l >= 20 && l <= 80 },
+    { name: 'blue', range: [150, 250], check: (h, s, l) => h >= 180 && h <= 250 && s >= 25 && l >= 20 && l <= 80 },
+    { name: 'purple', range: [250, 345], check: (h, s, l) => h >= 250 && h <= 345 && s >= 25 && l >= 20 && l <= 80 },
+  ];
+  
+  // Convert RGB to HSL
+  const rNorm = r / 255;
+  const gNorm = g / 255;
+  const bNorm = b / 255;
+  
+  const max = Math.max(rNorm, gNorm, bNorm);
+  const min = Math.min(rNorm, gNorm, bNorm);
+  const diff = max - min;
+  
+  const l = (max + min) / 2;
+  let s = 0;
+  let h = 0;
+  
+  if (diff !== 0) {
+    s = l > 0.5 ? diff / (2 - max - min) : diff / (max + min);
+    
+    switch (max) {
+      case rNorm:
+        h = ((gNorm - bNorm) / diff + (gNorm < bNorm ? 6 : 0)) / 6;
+        break;
+      case gNorm:
+        h = ((bNorm - rNorm) / diff + 2) / 6;
+        break;
+      case bNorm:
+        h = ((rNorm - gNorm) / diff + 4) / 6;
+        break;
+    }
+  }
+  
+  h *= 360;
+  s *= 100;
+  const lPercent = l * 100;
+  
+  // Check if it's grayscale
+  if (s < 15 || lPercent < 15 || lPercent > 85) {
+    return lPercent < 30 ? 'black' : lPercent > 70 ? 'white' : 'gray';
+  }
+  
+  // Find matching rainbow color
+  for (const color of colors) {
+    if (color.check(h, s, lPercent)) {
+      return color.name;
+    }
+  }
+  
+  return 'gray';
+}
+
+async function extractColors(filePath) {
+  try {
+    const palette = await Vibrant.from(filePath).getPalette();
+    const colorCounts = {};
+    
+    for (const [name, swatch] of Object.entries(palette)) {
+      if (swatch) {
+        const rainbowColor = getRainbowColor(swatch.rgb);
+        colorCounts[rainbowColor] = (colorCounts[rainbowColor] || 0) + swatch.population;
+      }
+    }
+    
+    // Return top 3 dominant colors
+    return Object.entries(colorCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 3)
+      .map(([color]) => color);
+  } catch (error) {
+    console.error(`Error extracting colors from ${filePath}:`, error);
+    return [];
   }
 }
 
@@ -91,6 +176,10 @@ async function run() {
     };
     image.title = data.ObjectName;
     image.keywords = data.Keywords;
+
+    // Extract dominant colors
+    process.stdout.write(`  ➤ ${progress}: extracting colors\r`);
+    image.colors = await extractColors(filePath);
 
     // Build the srcset
     const parsedPath = path.parse(filePath);
