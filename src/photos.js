@@ -5,21 +5,22 @@ import { createLightbox, addSwipeGestures, setupLightboxLazyLoading } from './li
 function updateLightboxNavigation(visiblePhotoIndices) {
   // Store visible indices globally for swipe navigation
   window.visiblePhotoIndices = visiblePhotoIndices;
-  
+
   visiblePhotoIndices.forEach((photoIndex, visibleIndex) => {
     const lightbox = document.getElementById(`lightbox-${photoIndex}`);
     if (!lightbox) return;
-    
+
     const nextButton = lightbox.querySelector('.next');
     const prevButton = lightbox.querySelector('.prev');
-    
+
     if (nextButton && prevButton) {
       const nextVisibleIndex = (visibleIndex + 1) % visiblePhotoIndices.length;
-      const prevVisibleIndex = (visibleIndex - 1 + visiblePhotoIndices.length) % visiblePhotoIndices.length;
-      
+      const prevVisibleIndex =
+        (visibleIndex - 1 + visiblePhotoIndices.length) % visiblePhotoIndices.length;
+
       const nextPhotoIndex = visiblePhotoIndices[nextVisibleIndex];
       const prevPhotoIndex = visiblePhotoIndices[prevVisibleIndex];
-      
+
       nextButton.href = `#lightbox-${nextPhotoIndex}`;
       prevButton.href = `#lightbox-${prevPhotoIndex}`;
     }
@@ -28,30 +29,30 @@ function updateLightboxNavigation(visiblePhotoIndices) {
 
 function filterPhotosByColor(color, count, photos) {
   const galleryItems = document.querySelectorAll('.gallery-item');
-  
+
   // First, collect items that match the color with their population data
   const matchingItems = [];
-  galleryItems.forEach(item => {
+  galleryItems.forEach((item) => {
     const photoColors = item.dataset.colors ? item.dataset.colors.split(',') : [];
     const photoIndex = parseInt(item.id.replace('p', ''), 10);
     const photo = photos[photoIndex];
-    
+
     if (photoColors.includes(color)) {
       // Find the population for this specific color
-      const colorData = photo.colors?.find(c => c.color === color);
+      const colorData = photo.colors?.find((c) => c.color === color);
       const population = colorData ? colorData.population : 0;
-      
+
       matchingItems.push({
         element: item,
         population,
-        originalOrder: photoIndex
+        originalOrder: photoIndex,
       });
     } else {
       const itemElement = item;
       itemElement.style.display = 'none';
     }
   });
-  
+
   // Sort by population (highest first), then by original order if population is the same
   matchingItems.sort((a, b) => {
     if (b.population !== a.population) {
@@ -59,7 +60,7 @@ function filterPhotosByColor(color, count, photos) {
     }
     return a.originalOrder - b.originalOrder;
   });
-  
+
   // Apply the sorted order to the DOM and update lightbox navigation
   const visiblePhotoIndices = [];
   matchingItems.forEach((item, index) => {
@@ -68,26 +69,26 @@ function filterPhotosByColor(color, count, photos) {
     itemElement.style.order = index;
     visiblePhotoIndices.push(item.originalOrder);
   });
-  
+
   // Update lightbox navigation for filtered photos
   updateLightboxNavigation(visiblePhotoIndices);
-  
+
   const countElement = count;
   countElement.textContent = `${matchingItems.length} photos`;
 }
 
 function showAllPhotos(photos, count) {
   const galleryItems = document.querySelectorAll('.gallery-item');
-  galleryItems.forEach(item => {
+  galleryItems.forEach((item) => {
     const itemElement = item;
     itemElement.style.display = 'block';
-    itemElement.style.order = '';  // Reset order to original
+    itemElement.style.order = ''; // Reset order to original
   });
-  
+
   // Reset lightbox navigation to show all photos
   const allPhotoIndices = photos.map((_, index) => index);
   updateLightboxNavigation(allPhotoIndices);
-  
+
   const countElement = count;
   countElement.textContent = `${photos.length} photos`;
 }
@@ -105,12 +106,13 @@ export default async function getPhotosGallery() {
   const photos = await response.json();
 
   // Extract all unique colors from photos (now handling objects with color and population)
-  const allColors = [...new Set(
-    photos
-      .filter(photo => photo.colors && Array.isArray(photo.colors))
-      .flatMap(photo => photo.colors.map(colorObj => colorObj.color))
-  )].filter(Boolean);
-  
+  const allColors = [
+    ...new Set(
+      photos
+        .filter((photo) => photo.colors && Array.isArray(photo.colors))
+        .flatMap((photo) => photo.colors.map((colorObj) => colorObj.color))
+    ),
+  ].filter(Boolean);
 
   const count = document.createElement('span');
   count.textContent = `${photos.length} photos`;
@@ -122,26 +124,26 @@ export default async function getPhotosGallery() {
     const colorFilter = document.createElement('div');
     colorFilter.className = 'color-filter';
     let selectedColor = null;
-    
+
     // Add "Show All" button
     const showAllButton = document.createElement('button');
     showAllButton.textContent = 'All';
     showAllButton.className = 'show-all-button';
     showAllButton.addEventListener('click', () => {
       selectedColor = null;
-      document.querySelectorAll('.color-circle').forEach(circle => {
+      document.querySelectorAll('.color-circle').forEach((circle) => {
         circle.classList.remove('selected');
       });
       showAllPhotos(photos, count);
     });
     colorFilter.appendChild(showAllButton);
-    
-    allColors.forEach(color => {
+
+    allColors.forEach((color) => {
       const colorCircle = document.createElement('div');
       colorCircle.className = 'color-circle';
       colorCircle.style.backgroundColor = color;
       colorCircle.title = color;
-      
+
       colorCircle.addEventListener('click', () => {
         // Toggle selection
         if (selectedColor === color) {
@@ -150,19 +152,19 @@ export default async function getPhotosGallery() {
           showAllPhotos(photos, count);
         } else {
           // Remove previous selection
-          document.querySelectorAll('.color-circle').forEach(circle => {
+          document.querySelectorAll('.color-circle').forEach((circle) => {
             circle.classList.remove('selected');
           });
-          
+
           selectedColor = color;
           colorCircle.classList.add('selected');
           filterPhotosByColor(color, count, photos);
         }
       });
-      
+
       colorFilter.appendChild(colorCircle);
     });
-    
+
     container.appendChild(colorFilter);
   }
 
@@ -172,7 +174,7 @@ export default async function getPhotosGallery() {
     link.href = `#lightbox-${index}`;
     link.className = 'gallery-item';
     // Store colors data for filtering (extract color names from objects)
-    link.dataset.colors = (photo.colors || []).map(colorObj => colorObj.color).join(',');
+    link.dataset.colors = (photo.colors || []).map((colorObj) => colorObj.color).join(',');
 
     // Get the smallest size for gallery thumbnail
     const minSize = photo.src.set[0].split(' ')[0];

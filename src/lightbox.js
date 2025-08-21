@@ -8,8 +8,6 @@ const SWIPE_TRANSITION_SLOW = `transform ${TRANSITION_SLOW} ${TRANSITION_EASING}
 // Swipe detection constants
 const MIN_SWIPE_DISTANCE = 50;
 const MAX_VERTICAL_DISTANCE = 100;
-const OPACITY_DRAG_DIVISOR = 300;
-const MIN_OPACITY = 0.3;
 
 export function createLightbox(photo, index, photos) {
   const nextPhotoId = (index + 1) % photos.length;
@@ -58,7 +56,9 @@ export function createLightbox(photo, index, photos) {
   lightboxClose.textContent = '×';
 
   // Check if device is primarily touch-based (mobile/tablet)
-  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
 
   if (isMobileDevice) {
     // Hide navigation buttons on mobile devices
@@ -79,9 +79,6 @@ export function addSwipeGestures(lightboxImg, index) {
   let touchStartY = 0;
   let touchEndX = 0;
   let touchEndY = 0;
-  let isDragging = false;
-  let currentX = 0;
-  let currentY = 0;
 
   const img = lightboxImg;
 
@@ -122,17 +119,18 @@ export function addSwipeGestures(lightboxImg, index) {
       // Get visible photo indices from global state
       const visibleIndices = window.visiblePhotoIndices || [];
       if (visibleIndices.length === 0) return;
-      
+
       // Find current index in visible array
       const currentVisibleIndex = visibleIndices.indexOf(index);
       if (currentVisibleIndex === -1) return;
-      
+
       let targetIndex;
       let direction;
 
       if (swipeDistanceX > 0) {
         // Swipe right - go to previous image
-        const prevVisibleIndex = (currentVisibleIndex - 1 + visibleIndices.length) % visibleIndices.length;
+        const prevVisibleIndex =
+          (currentVisibleIndex - 1 + visibleIndices.length) % visibleIndices.length;
         targetIndex = visibleIndices[prevVisibleIndex];
         direction = 'right';
       } else {
@@ -160,43 +158,22 @@ export function addSwipeGestures(lightboxImg, index) {
     }
   };
 
-  const handleTouchMove = (e) => {
-    // Track movement for swipe detection but don't apply visual changes
-    if (!isDragging) return;
-
-    currentX = e.changedTouches[0].clientX - touchStartX;
-    currentY = e.changedTouches[0].clientY - touchStartY;
-  };
-
   img.addEventListener(
     'touchstart',
     (e) => {
       touchStartX = e.changedTouches[0].clientX;
       touchStartY = e.changedTouches[0].clientY;
-      isDragging = true;
     },
     { passive: true }
   );
-
-  img.addEventListener('touchmove', handleTouchMove, { passive: true });
 
   img.addEventListener(
     'touchend',
     (e) => {
       touchEndX = e.changedTouches[0].clientX;
       touchEndY = e.changedTouches[0].clientY;
-      isDragging = false;
       img.style.transition = SWIPE_TRANSITION_FAST;
       handleSwipe();
-    },
-    { passive: true }
-  );
-
-  // Handle touch cancel
-  img.addEventListener(
-    'touchcancel',
-    () => {
-      isDragging = false;
     },
     { passive: true }
   );
@@ -243,16 +220,16 @@ export function setupLightboxLazyLoading() {
       const lightbox = document.querySelector(hash);
       if (lightbox) {
         const img = lightbox.querySelector('img');
-        
+
         // Always reset transforms first to clear any previous exit animations
         img.style.transition = 'none';
         img.style.transform = 'translate(-50%, -50%)';
         img.style.opacity = '1';
-        
+
         // Force reflow to ensure the reset is applied immediately
         // eslint-disable-next-line no-unused-expressions
         img.offsetHeight;
-        
+
         loadLightboxImage(img);
 
         // Re-enable transition for future animations
