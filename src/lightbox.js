@@ -83,31 +83,33 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
   let currentX = 0;
   let currentY = 0;
 
+  const img = lightboxImg;
+
   // Add transition for smooth animations
-  lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
+  img.style.transition = SWIPE_TRANSITION_FAST;
   // Prevent default touch behaviors
-  lightboxImg.style.touchAction = 'none';
+  img.style.touchAction = 'none';
 
   const handleSwipe = () => {
     const swipeDistanceX = touchEndX - touchStartX;
     const swipeDistanceY = touchEndY - touchStartY;
 
     // Reset transform after swipe
-    lightboxImg.style.transform = 'translate(-50%, -50%)';
-    lightboxImg.style.opacity = '1';
+    img.style.transform = 'translate(-50%, -50%)';
+    img.style.opacity = '1';
 
     // Check for swipe up to close (negative Y means up)
     if (swipeDistanceY < -MIN_SWIPE_DISTANCE && Math.abs(swipeDistanceX) < MAX_VERTICAL_DISTANCE) {
       // Animate out before closing
-      lightboxImg.style.transition = SWIPE_TRANSITION_SLOW;
-      lightboxImg.style.transform = 'translate(-50%, -150%)';
-      lightboxImg.style.opacity = '0';
+      img.style.transition = SWIPE_TRANSITION_SLOW;
+      img.style.transform = 'translate(-50%, -150%)';
+      img.style.opacity = '0';
 
       setTimeout(
         () => {
           window.location.hash = `#p${index}`;
         },
-        parseInt(TRANSITION_SLOW) * 1000
+        parseInt(TRANSITION_SLOW, 10) * 1000
       );
       return;
     }
@@ -131,19 +133,19 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
       }
 
       // Animate out (faster for horizontal swipes)
-      lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
+      img.style.transition = SWIPE_TRANSITION_FAST;
       if (direction === 'left') {
-        lightboxImg.style.transform = 'translate(-150%, -50%)';
+        img.style.transform = 'translate(-150%, -50%)';
       } else {
-        lightboxImg.style.transform = 'translate(50%, -50%)';
+        img.style.transform = 'translate(50%, -50%)';
       }
-      lightboxImg.style.opacity = '0';
+      img.style.opacity = '0';
 
       setTimeout(
         () => {
           window.location.hash = `#lightbox-${targetIndex}`;
         },
-        parseInt(TRANSITION_FAST) * 1000
+        parseInt(TRANSITION_FAST, 10) * 1000
       );
     }
   };
@@ -155,48 +157,48 @@ export function addSwipeGestures(lightboxImg, index, photosLength) {
     currentY = e.changedTouches[0].clientY - touchStartY;
 
     // Apply real-time transform while dragging
-    lightboxImg.style.transition = 'none';
-    lightboxImg.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
+    img.style.transition = 'none';
+    img.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
 
     // Adjust opacity based on drag distance
     const dragDistance = Math.sqrt(currentX * currentX + currentY * currentY);
     const opacity = Math.max(MIN_OPACITY, 1 - dragDistance / OPACITY_DRAG_DIVISOR);
-    lightboxImg.style.opacity = opacity;
+    img.style.opacity = opacity;
   };
 
-  lightboxImg.addEventListener(
+  img.addEventListener(
     'touchstart',
     (e) => {
       touchStartX = e.changedTouches[0].clientX;
       touchStartY = e.changedTouches[0].clientY;
       isDragging = true;
-      lightboxImg.style.transition = 'none';
+      img.style.transition = 'none';
     },
     { passive: true }
   );
 
-  lightboxImg.addEventListener('touchmove', handleTouchMove, { passive: true });
+  img.addEventListener('touchmove', handleTouchMove, { passive: true });
 
-  lightboxImg.addEventListener(
+  img.addEventListener(
     'touchend',
     (e) => {
       touchEndX = e.changedTouches[0].clientX;
       touchEndY = e.changedTouches[0].clientY;
       isDragging = false;
-      lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
+      img.style.transition = SWIPE_TRANSITION_FAST;
       handleSwipe();
     },
     { passive: true }
   );
 
   // Handle touch cancel
-  lightboxImg.addEventListener(
+  img.addEventListener(
     'touchcancel',
     () => {
       isDragging = false;
-      lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
-      lightboxImg.style.transform = 'translate(-50%, -50%)';
-      lightboxImg.style.opacity = '1';
+      img.style.transition = SWIPE_TRANSITION_FAST;
+      img.style.transform = 'translate(-50%, -50%)';
+      img.style.opacity = '1';
     },
     { passive: true }
   );
