@@ -18,6 +18,44 @@ export default async function getPhotosGallery() {
   count.className = 'counter';
   container.appendChild(count);
 
+  // Add swipe gesture support variables
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchEndX = 0;
+  let touchEndY = 0;
+  const minSwipeDistance = 50;
+
+  const createSwipeHandler = (currentIndex) => {
+    const handleSwipe = () => {
+      const swipeDistanceX = touchEndX - touchStartX;
+      const swipeDistanceY = touchEndY - touchStartY;
+
+      // Check for swipe up to close (negative Y means up)
+      if (swipeDistanceY < -minSwipeDistance && Math.abs(swipeDistanceX) < 100) {
+        // Swipe up - close lightbox
+        window.location.hash = `#p${currentIndex}`;
+        return;
+      }
+
+      // Process horizontal swipes for navigation
+      if (Math.abs(swipeDistanceX) > minSwipeDistance && Math.abs(swipeDistanceY) < 100) {
+        let targetIndex;
+
+        if (swipeDistanceX > 0) {
+          // Swipe right - go to previous image
+          targetIndex = (currentIndex - 1 + photos.length) % photos.length;
+        } else {
+          // Swipe left - go to next image
+          targetIndex = (currentIndex + 1) % photos.length;
+        }
+
+        window.location.hash = `#lightbox-${targetIndex}`;
+      }
+    };
+
+    return handleSwipe;
+  };
+
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
     link.id = `p${index}`;
@@ -61,6 +99,20 @@ export default async function getPhotosGallery() {
               (max-width: 1500px) 1440px,
               (max-width: 2000px) 1920px,
               ${maxWidth}px`;
+
+    // Add touch event listeners to the lightbox image
+    const handleSwipe = createSwipeHandler(index);
+
+    lightboxImg.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].clientX;
+      touchStartY = e.changedTouches[0].clientY;
+    }, { passive: true });
+
+    lightboxImg.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].clientX;
+      touchEndY = e.changedTouches[0].clientY;
+      handleSwipe();
+    }, { passive: true });
 
     const lightboxNext = document.createElement('a');
     lightboxNext.className = 'slideshow-nav next';
