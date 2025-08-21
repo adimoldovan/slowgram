@@ -1,6 +1,6 @@
 // Animation timing constants
-const TRANSITION_FAST = '0.3s';
-const TRANSITION_SLOW = '0.5s';
+const TRANSITION_FAST = '0.6s';
+const TRANSITION_SLOW = '0.8s';
 const TRANSITION_EASING = 'ease-out';
 const SWIPE_TRANSITION_FAST = `transform ${TRANSITION_FAST} ${TRANSITION_EASING}, opacity ${TRANSITION_FAST} ${TRANSITION_EASING}`;
 const SWIPE_TRANSITION_SLOW = `transform ${TRANSITION_SLOW} ${TRANSITION_EASING}, opacity ${TRANSITION_SLOW} ${TRANSITION_EASING}`;
@@ -57,11 +57,11 @@ export function createLightbox(photo, index, photos) {
   lightboxClose.href = `#p${index}`;
   lightboxClose.textContent = '×';
 
-  // Check if device supports touch
-  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  // Check if device is primarily touch-based (mobile/tablet)
+  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
-  if (isTouchDevice) {
-    // Hide navigation buttons on touch devices
+  if (isMobileDevice) {
+    // Hide navigation buttons on mobile devices
     lightboxNext.style.display = 'none';
     lightboxPrev.style.display = 'none';
   }
@@ -161,19 +161,11 @@ export function addSwipeGestures(lightboxImg, index) {
   };
 
   const handleTouchMove = (e) => {
+    // Track movement for swipe detection but don't apply visual changes
     if (!isDragging) return;
 
     currentX = e.changedTouches[0].clientX - touchStartX;
     currentY = e.changedTouches[0].clientY - touchStartY;
-
-    // Apply real-time transform while dragging
-    img.style.transition = 'none';
-    img.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
-
-    // Adjust opacity based on drag distance
-    const dragDistance = Math.sqrt(currentX * currentX + currentY * currentY);
-    const opacity = Math.max(MIN_OPACITY, 1 - dragDistance / OPACITY_DRAG_DIVISOR);
-    img.style.opacity = opacity;
   };
 
   img.addEventListener(
@@ -182,7 +174,6 @@ export function addSwipeGestures(lightboxImg, index) {
       touchStartX = e.changedTouches[0].clientX;
       touchStartY = e.changedTouches[0].clientY;
       isDragging = true;
-      img.style.transition = 'none';
     },
     { passive: true }
   );
@@ -206,9 +197,6 @@ export function addSwipeGestures(lightboxImg, index) {
     'touchcancel',
     () => {
       isDragging = false;
-      img.style.transition = SWIPE_TRANSITION_FAST;
-      img.style.transform = 'translate(-50%, -50%)';
-      img.style.opacity = '1';
     },
     { passive: true }
   );
