@@ -17,12 +17,14 @@ body {
   color: var(--font-color);
   background-color: var(--bg-color);
   text-align: center;
-  transition: background-color 0.3s, color 0.3s;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
 }
 
 /* Dark Mode Toggle */
 .dark-mode-toggle {
-  position: fixed;
+  position: absolute;
   top: 12px;
   right: 12px;
   z-index: 100;
@@ -90,27 +92,14 @@ header p {
   position: relative;
   overflow: hidden;
   margin: 0.5rem 0;
-}
-
-.color-filter-outer::before,
-.color-filter-outer::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 12%;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.color-filter-outer::before {
-  left: 0;
-  background: linear-gradient(to right, var(--contrast-color), transparent);
-}
-
-.color-filter-outer::after {
-  right: 0;
-  background: linear-gradient(to left, var(--contrast-color), transparent);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 14%,
+    black 86%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to right, transparent 0%, black 14%, black 86%, transparent 100%);
 }
 
 .color-filter-scroll {

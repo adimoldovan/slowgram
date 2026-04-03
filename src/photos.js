@@ -72,11 +72,31 @@ export default async function getPhotosGallery() {
 
   // Extract unique colors, sorted by hue
   const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-  function hexToHue(hex) {
-    if (typeof hex !== 'string' || !HEX_COLOR_RE.test(hex)) return 0;
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const CSS_COLOR_RE = /^[a-zA-Z]+$/;
+  function isValidColor(c) {
+    return typeof c === 'string' && (HEX_COLOR_RE.test(c) || CSS_COLOR_RE.test(c));
+  }
+  function colorToRgb(color) {
+    if (HEX_COLOR_RE.test(color)) {
+      return [
+        parseInt(color.slice(1, 3), 16) / 255,
+        parseInt(color.slice(3, 5), 16) / 255,
+        parseInt(color.slice(5, 7), 16) / 255,
+      ];
+    }
+    const el = document.createElement('span');
+    el.style.color = color;
+    document.body.appendChild(el);
+    const computed = getComputedStyle(el).color;
+    el.remove();
+    const match = computed.match(/(\d+)/g);
+    if (!match || match.length < 3) return [0, 0, 0];
+    return [+match[0] / 255, +match[1] / 255, +match[2] / 255];
+  }
+
+  function colorToHue(color) {
+    if (typeof color !== 'string') return 0;
+    const [r, g, b] = colorToRgb(color);
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     const d = max - min;
@@ -95,8 +115,8 @@ export default async function getPhotosGallery() {
         .flatMap((photo) => photo.colors.map((colorObj) => colorObj.color))
     ),
   ]
-    .filter((c) => typeof c === 'string' && HEX_COLOR_RE.test(c))
-    .sort((a, b) => hexToHue(a) - hexToHue(b));
+    .filter(isValidColor)
+    .sort((a, b) => colorToHue(a) - colorToHue(b));
 
   const count = document.createElement('span');
   count.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'}`;
@@ -125,7 +145,7 @@ export default async function getPhotosGallery() {
     // Each segment occupies segWidth pixels
     function buildTrackGradient() {
       const stops = [];
-      const allRainbow = allColors.slice(0, 6);
+      const allRainbow = allColors;
       // "All" segment: mini rainbow within its width
       const allStopCount = allRainbow.length;
       for (let i = 0; i < allStopCount; i++) {
@@ -142,7 +162,7 @@ export default async function getPhotosGallery() {
       return `linear-gradient(to right, ${stops.join(', ')})`;
     }
 
-    const allGradient = `linear-gradient(135deg, ${allColors.slice(0, 6).join(', ')})`;
+    const allGradient = `linear-gradient(135deg, ${allColors.join(', ')})`;
 
     function createAllSegment() {
       const seg = document.createElement('div');
