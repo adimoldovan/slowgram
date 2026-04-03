@@ -71,12 +71,12 @@ header p {
 
 .color-filter-outer::before {
   left: 0;
-  background: linear-gradient(to right, white, transparent);
+  background: linear-gradient(to right, var(--contrast-color), transparent);
 }
 
 .color-filter-outer::after {
   right: 0;
-  background: linear-gradient(to left, white, transparent);
+  background: linear-gradient(to left, var(--contrast-color), transparent);
 }
 
 .color-filter-scroll {

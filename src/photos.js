@@ -71,7 +71,9 @@ export default async function getPhotosGallery() {
   }
 
   // Extract unique colors, sorted by hue
+  const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
   function hexToHue(hex) {
+    if (typeof hex !== 'string' || !HEX_COLOR_RE.test(hex)) return 0;
     const r = parseInt(hex.slice(1, 3), 16) / 255;
     const g = parseInt(hex.slice(3, 5), 16) / 255;
     const b = parseInt(hex.slice(5, 7), 16) / 255;
@@ -93,7 +95,7 @@ export default async function getPhotosGallery() {
         .flatMap((photo) => photo.colors.map((colorObj) => colorObj.color))
     ),
   ]
-    .filter(Boolean)
+    .filter((c) => typeof c === 'string' && HEX_COLOR_RE.test(c))
     .sort((a, b) => hexToHue(a) - hexToHue(b));
 
   const count = document.createElement('span');
@@ -127,7 +129,7 @@ export default async function getPhotosGallery() {
       // "All" segment: mini rainbow within its width
       const allStopCount = allRainbow.length;
       for (let i = 0; i < allStopCount; i++) {
-        const pct = (i / (allStopCount - 1)) * segWidth;
+        const pct = allStopCount > 1 ? (i / (allStopCount - 1)) * segWidth : 0;
         stops.push(`${allRainbow[i]} ${pct}px`);
       }
       // Color segments: mostly solid with short blend at edges
@@ -159,7 +161,7 @@ export default async function getPhotosGallery() {
       return seg;
     }
 
-    let highlightedColor; // track what's visually highlighted
+    let highlightedColor = null; // track what's visually highlighted
 
     function highlightCenteredSegment() {
       const scrollCenter = filterScroll.scrollLeft + filterScroll.clientWidth / 2;
@@ -180,9 +182,11 @@ export default async function getPhotosGallery() {
           el.style.background = allGradient;
         });
       } else {
-        filterTrack.querySelectorAll(`[data-color="${color}"]`).forEach((el) => {
-          el.classList.add('selected');
-          el.style.background = color;
+        filterTrack.querySelectorAll('.color-bar-segment').forEach((el) => {
+          if (el.dataset.color === color) {
+            el.classList.add('selected');
+            el.style.background = color;
+          }
         });
       }
     }
@@ -207,9 +211,8 @@ export default async function getPhotosGallery() {
 
     // Apply smooth gradient as track background, repeating for 3 copies
     const singleGradient = buildTrackGradient();
-    const oneSetPx = (allColors.length + 1) * segWidth;
     filterTrack.style.backgroundImage = singleGradient;
-    filterTrack.style.backgroundSize = `${oneSetPx}px 100%`;
+    filterTrack.style.backgroundSize = `${oneSetWidth}px 100%`;
     filterTrack.style.backgroundRepeat = 'repeat-x';
 
     filterScroll.appendChild(filterTrack);
