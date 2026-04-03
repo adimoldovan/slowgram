@@ -38,7 +38,7 @@ function filterPhotosByColor(color, count, photos) {
     visiblePhotoIndices.push(item.originalOrder);
   });
 
-  count.textContent = `${matchingItems.length} photo${matchingItems.length === 1 ? '' : 's'}`;
+  count.textContent = `${matchingItems.length}/${photos.length} photos`;
 }
 
 function showAllPhotos(photos, count) {
@@ -49,7 +49,7 @@ function showAllPhotos(photos, count) {
   });
 
   visiblePhotoIndices = photos.map((_, index) => index);
-  count.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'}`;
+  count.textContent = `${photos.length} photos`;
 }
 
 export default async function getPhotosGallery() {
@@ -119,7 +119,7 @@ export default async function getPhotosGallery() {
     .sort((a, b) => colorToHue(a) - colorToHue(b));
 
   const count = document.createElement('span');
-  count.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'}`;
+  count.textContent = `${photos.length} photos`;
   count.className = 'counter';
   container.appendChild(count);
 
