@@ -105,6 +105,16 @@ export function createLightbox(photo, index) {
 
   addSwipeGestures(dialog, img, index);
 
+  dialog.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      navigateLightbox(index, -1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      navigateLightbox(index, 1);
+    }
+  });
+
   return { dialog, lightboxImg: img };
 }
 
