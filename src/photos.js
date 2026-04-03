@@ -140,34 +140,13 @@ export default async function getPhotosGallery() {
 
     let selectedColor = null;
 
-    // Build a smooth continuous gradient for the track background
-    // One set: [all-rainbow, color0, color1, ..., colorN]
-    // Each segment occupies segWidth pixels
-    function buildTrackGradient() {
-      const stops = [];
-      const allRainbow = allColors;
-      // "All" segment: mini rainbow within its width
-      const allStopCount = allRainbow.length;
-      for (let i = 0; i < allStopCount; i++) {
-        const pct = allStopCount > 1 ? (i / (allStopCount - 1)) * segWidth : 0;
-        stops.push(`${allRainbow[i]} ${pct}px`);
-      }
-      // Color segments: mostly solid with short blend at edges
-      allColors.forEach((color, i) => {
-        const start = (i + 1) * segWidth;
-        const end = (i + 2) * segWidth;
-        stops.push(`${color} ${start}px`);
-        stops.push(`${color} ${end - segWidth * 0.1}px`);
-      });
-      return `linear-gradient(to right, ${stops.join(', ')})`;
-    }
-
     const allGradient = `linear-gradient(135deg, ${allColors.join(', ')})`;
 
     function createAllSegment() {
       const seg = document.createElement('div');
       seg.className = 'color-bar-all';
       seg.dataset.type = 'all';
+      seg.style.background = allGradient;
       return seg;
     }
 
@@ -176,9 +155,35 @@ export default async function getPhotosGallery() {
       seg.className = 'color-bar-segment';
       seg.title = color;
       seg.dataset.color = color;
-      // Store color for selected state
-      seg.dataset.bg = color;
+      seg.style.background = color;
       return seg;
+    }
+
+    function updateSegmentScales() {
+      const scrollCenter = filterScroll.scrollLeft + filterScroll.clientWidth / 2;
+      const halfVisible = filterScroll.clientWidth / 2;
+      const segments = filterTrack.children;
+      // Only process segments roughly in the visible range
+      const firstVisible = Math.max(0, Math.floor((scrollCenter - halfVisible * 1.5) / segWidth));
+      const lastVisible = Math.min(
+        segments.length - 1,
+        Math.ceil((scrollCenter + halfVisible * 1.5) / segWidth)
+      );
+      for (let i = 0; i < segments.length; i++) {
+        if (i < firstVisible || i > lastVisible) {
+          segments[i].style.transform = 'scaleY(0.5) scaleX(0.85)';
+          continue;
+        }
+        const segCenter = i * segWidth + segWidth / 2;
+        const dist = Math.abs(segCenter - scrollCenter);
+        const t = Math.min(dist / halfVisible, 1);
+        // Smooth cubic falloff: stays near 1.0 in center, eases down to 0.5 at edges
+        const scale = 0.5 + 0.5 * (1 - t * t * t);
+        const isSelected = segments[i].classList.contains('selected');
+        const sy = isSelected ? scale * 1.5 : scale;
+        const sx = isSelected ? (0.7 + 0.3 * scale) * 1.15 : 0.7 + 0.3 * scale;
+        segments[i].style.transform = `scaleY(${sy}) scaleX(${sx})`;
+      }
     }
 
     let highlightedColor = null; // track what's visually highlighted
@@ -193,19 +198,16 @@ export default async function getPhotosGallery() {
 
       filterTrack.querySelectorAll('.selected').forEach((el) => {
         el.classList.remove('selected');
-        el.style.background = 'transparent';
       });
 
       if (color === null) {
         filterTrack.querySelectorAll('.color-bar-all').forEach((el) => {
           el.classList.add('selected');
-          el.style.background = allGradient;
         });
       } else {
         filterTrack.querySelectorAll('.color-bar-segment').forEach((el) => {
           if (el.dataset.color === color) {
             el.classList.add('selected');
-            el.style.background = color;
           }
         });
       }
@@ -229,12 +231,6 @@ export default async function getPhotosGallery() {
       });
     }
 
-    // Apply smooth gradient as track background, repeating for 3 copies
-    const singleGradient = buildTrackGradient();
-    filterTrack.style.backgroundImage = singleGradient;
-    filterTrack.style.backgroundSize = `${oneSetWidth}px 100%`;
-    filterTrack.style.backgroundRepeat = 'repeat-x';
-
     filterScroll.appendChild(filterTrack);
     filterOuter.appendChild(filterScroll);
 
@@ -248,10 +244,10 @@ export default async function getPhotosGallery() {
     // "All" is selected by default
     filterTrack.querySelectorAll('.color-bar-all').forEach((el) => {
       el.classList.add('selected');
-      el.style.background = allGradient;
     });
     requestAnimationFrame(() => {
       filterScroll.scrollLeft = oneSetWidth - filterScroll.clientWidth / 2 + segWidth / 2;
+      updateSegmentScales();
     });
 
     let ticking = false;
@@ -266,7 +262,8 @@ export default async function getPhotosGallery() {
         } else if (sl > oneSetWidth * 1.7) {
           filterScroll.scrollLeft = sl - oneSetWidth;
         }
-        // Highlight follows center immediately
+        // Update scales and highlight
+        updateSegmentScales();
         highlightCenteredSegment();
         ticking = false;
       });
