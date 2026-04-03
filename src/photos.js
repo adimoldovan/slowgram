@@ -177,7 +177,7 @@ export default async function getPhotosGallery() {
     link.dataset.colors = (photo.colors || []).map((colorObj) => colorObj.color).join(',');
 
     // Get the smallest size for gallery thumbnail
-    const minSize = photo.src.set[0].split(' ')[0];
+    const [minSize] = photo.src.set[0].split(' ');
     const thumbnailSrc = `${photo.src.path}/${minSize}`;
 
     const img = document.createElement('img');

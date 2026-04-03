@@ -1,4 +1,4 @@
-/* eslint-disable no-console */
+ 
 
 import fs from 'fs';
 import path from 'path';
@@ -273,7 +273,7 @@ async function run() {
     // Get the date taken in timestamp and original format
     const dateParts = data.DateTimeOriginal.split(' ');
     const datePart = dateParts[0].replace(/:/g, '-');
-    const timePart = dateParts[1];
+    const [, timePart] = dateParts;
     const timestamp = Date.parse(`${datePart}T${timePart}`);
     image.dateTaken = {
       timestamp,
@@ -296,7 +296,7 @@ async function run() {
 
     // Build the srcset
     const parsedPath = path.parse(filePath);
-    const originalWidth = data.ImageSize.split('x')[0];
+    const [originalWidth] = data.ImageSize.split('x');
     image.src = {
       path: `${config.feed.photos}/${parsedPath.name}`,
       set: [],

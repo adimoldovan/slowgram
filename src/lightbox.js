@@ -184,26 +184,24 @@ export function setupLightboxLazyLoading() {
     const { dataset } = lightboxImg;
     if (!lightboxImg.src && dataset.src) {
       // Prepare for entrance animation
-      // eslint-disable-next-line no-param-reassign
+
       lightboxImg.style.opacity = '0';
-      // eslint-disable-next-line no-param-reassign
+
       lightboxImg.style.transform = 'translate(-50%, -50%) scale(0.9)';
 
-      // eslint-disable-next-line no-param-reassign
       lightboxImg.src = dataset.src;
-      // eslint-disable-next-line no-param-reassign
+
       lightboxImg.srcset = dataset.srcset;
-      // eslint-disable-next-line no-param-reassign
+
       lightboxImg.sizes = dataset.sizes;
 
       // Animate entrance when image loads
-      // eslint-disable-next-line no-param-reassign
+
       lightboxImg.onload = () => {
-        // eslint-disable-next-line no-param-reassign
         lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
-        // eslint-disable-next-line no-param-reassign
+
         lightboxImg.style.opacity = '1';
-        // eslint-disable-next-line no-param-reassign
+
         lightboxImg.style.transform = 'translate(-50%, -50%) scale(1)';
       };
     }

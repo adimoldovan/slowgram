@@ -1,3 +1,4 @@
+/* global require */
 const r = require.context('./assets/social', false, /\.(png|jpe?g|svg)$/);
 const icons = {};
 r.keys().forEach((item) => {
