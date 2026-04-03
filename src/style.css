@@ -51,48 +51,66 @@ header p {
   margin-top: 1px;
 }
 
-/* Color Filter Section */
-.color-filter {
+/* Color Filter Bar */
+.color-filter-outer {
+  position: relative;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.color-filter-outer::before,
+.color-filter-outer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12%;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.color-filter-outer::before {
+  left: 0;
+  background: linear-gradient(to right, white, transparent);
+}
+
+.color-filter-outer::after {
+  right: 0;
+  background: linear-gradient(to left, white, transparent);
+}
+
+.color-filter-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 8px 0;
+}
+
+.color-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.color-filter-track {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px;
-  margin: 1rem 0;
-  padding: 0.5rem;
+  width: max-content;
 }
 
-.color-circle {
-  width: 24px;
+.color-bar-segment,
+.color-bar-all {
+  width: 38px;
   height: 24px;
-  border-radius: 50%;
   cursor: pointer;
-  border: 2px solid transparent;
-  transition: all 0.2s ease;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+  background: transparent;
 }
 
-.color-circle:hover {
-  transform: scale(1.1);
-}
-
-.color-circle.selected {
-  border-color: var(--font-color);
-  transform: scale(1.2);
-}
-
-.show-all-button {
-  background: var(--contrast-color);
-  border: 2px solid var(--borders-color);
-  border-radius: 12px;
-  padding: 4px 8px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  color: var(--font-color);
-  margin-right: 8px;
-}
-
-.show-all-button:hover {
-  background: var(--borders-color);
+.color-bar-segment.selected,
+.color-bar-all.selected {
+  transform: scaleX(1.15) scaleY(1.5);
+  z-index: 1;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 /* Gallery Section */
