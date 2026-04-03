@@ -1,36 +1,16 @@
-import './style.css';
 import config from '../config.json';
-import { createLightbox, addSwipeGestures, setupLightboxLazyLoading } from './lightbox';
+import { createLightbox, openLightbox } from './lightbox';
 
-function updateLightboxNavigation(visiblePhotoIndices) {
-  // Store visible indices globally for swipe navigation
-  window.visiblePhotoIndices = visiblePhotoIndices;
+// Module-scoped state instead of window global
+let visiblePhotoIndices = [];
 
-  visiblePhotoIndices.forEach((photoIndex, visibleIndex) => {
-    const lightbox = document.getElementById(`lightbox-${photoIndex}`);
-    if (!lightbox) return;
-
-    const nextButton = lightbox.querySelector('.next');
-    const prevButton = lightbox.querySelector('.prev');
-
-    if (nextButton && prevButton) {
-      const nextVisibleIndex = (visibleIndex + 1) % visiblePhotoIndices.length;
-      const prevVisibleIndex =
-        (visibleIndex - 1 + visiblePhotoIndices.length) % visiblePhotoIndices.length;
-
-      const nextPhotoIndex = visiblePhotoIndices[nextVisibleIndex];
-      const prevPhotoIndex = visiblePhotoIndices[prevVisibleIndex];
-
-      nextButton.href = `#lightbox-${nextPhotoIndex}`;
-      prevButton.href = `#lightbox-${prevPhotoIndex}`;
-    }
-  });
+export function getVisiblePhotoIndices() {
+  return visiblePhotoIndices;
 }
 
 function filterPhotosByColor(color, count, photos) {
   const galleryItems = document.querySelectorAll('.gallery-item');
 
-  // First, collect items that match the color with their population data
   const matchingItems = [];
   galleryItems.forEach((item) => {
     const photoColors = item.dataset.colors ? item.dataset.colors.split(',') : [];
@@ -38,63 +18,41 @@ function filterPhotosByColor(color, count, photos) {
     const photo = photos[photoIndex];
 
     if (photoColors.includes(color)) {
-      // Find the population for this specific color
       const colorData = photo.colors?.find((c) => c.color === color);
       const population = colorData ? colorData.population : 0;
-
-      matchingItems.push({
-        element: item,
-        population,
-        originalOrder: photoIndex,
-      });
+      matchingItems.push({ element: item, population, originalOrder: photoIndex });
     } else {
-      const itemElement = item;
-      itemElement.style.display = 'none';
+      item.style.display = 'none';
     }
   });
 
-  // Sort by population (highest first), then by original order if population is the same
   matchingItems.sort((a, b) => {
-    if (b.population !== a.population) {
-      return b.population - a.population;
-    }
+    if (b.population !== a.population) return b.population - a.population;
     return a.originalOrder - b.originalOrder;
   });
 
-  // Apply the sorted order to the DOM and update lightbox navigation
-  const visiblePhotoIndices = [];
+  visiblePhotoIndices = [];
   matchingItems.forEach((item, index) => {
-    const itemElement = item.element;
-    itemElement.style.display = 'block';
-    itemElement.style.order = index;
+    item.element.style.display = 'block';
+    item.element.style.order = index;
     visiblePhotoIndices.push(item.originalOrder);
   });
 
-  // Update lightbox navigation for filtered photos
-  updateLightboxNavigation(visiblePhotoIndices);
-
-  const countElement = count;
-  countElement.textContent = `${matchingItems.length} photos`;
+  count.textContent = `${matchingItems.length} photos`;
 }
 
 function showAllPhotos(photos, count) {
   const galleryItems = document.querySelectorAll('.gallery-item');
   galleryItems.forEach((item) => {
-    const itemElement = item;
-    itemElement.style.display = 'block';
-    itemElement.style.order = ''; // Reset order to original
+    item.style.display = 'block';
+    item.style.order = '';
   });
 
-  // Reset lightbox navigation to show all photos
-  const allPhotoIndices = photos.map((_, index) => index);
-  updateLightboxNavigation(allPhotoIndices);
-
-  const countElement = count;
-  countElement.textContent = `${photos.length} photos`;
+  visiblePhotoIndices = photos.map((_, index) => index);
+  count.textContent = `${photos.length} photos`;
 }
 
 export default async function getPhotosGallery() {
-  // region gallery
   const container = document.createElement('div');
   container.className = 'container';
 
@@ -105,7 +63,7 @@ export default async function getPhotosGallery() {
   const response = await fetch(config.feed.url);
   const photos = await response.json();
 
-  // Extract all unique colors from photos (now handling objects with color and population)
+  // Extract unique colors
   const allColors = [
     ...new Set(
       photos
@@ -119,13 +77,12 @@ export default async function getPhotosGallery() {
   count.className = 'counter';
   container.appendChild(count);
 
-  // Create color filter if there are colors to filter by
+  // Color filter
   if (allColors.length > 0) {
     const colorFilter = document.createElement('div');
     colorFilter.className = 'color-filter';
     let selectedColor = null;
 
-    // Add "Show All" button
     const showAllButton = document.createElement('button');
     showAllButton.textContent = 'All';
     showAllButton.className = 'show-all-button';
@@ -145,17 +102,14 @@ export default async function getPhotosGallery() {
       colorCircle.title = color;
 
       colorCircle.addEventListener('click', () => {
-        // Toggle selection
         if (selectedColor === color) {
           selectedColor = null;
           colorCircle.classList.remove('selected');
           showAllPhotos(photos, count);
         } else {
-          // Remove previous selection
           document.querySelectorAll('.color-circle').forEach((circle) => {
             circle.classList.remove('selected');
           });
-
           selectedColor = color;
           colorCircle.classList.add('selected');
           filterPhotosByColor(color, count, photos);
@@ -171,40 +125,32 @@ export default async function getPhotosGallery() {
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
     link.id = `p${index}`;
-    link.href = `#lightbox-${index}`;
+    link.href = '#';
     link.className = 'gallery-item';
-    // Store colors data for filtering (extract color names from objects)
     link.dataset.colors = (photo.colors || []).map((colorObj) => colorObj.color).join(',');
 
-    // Get the smallest size for gallery thumbnail
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      openLightbox(index);
+    });
+
     const [minSize] = photo.src.set[0].split(' ');
     const thumbnailSrc = `${photo.src.path}/${minSize}`;
 
     const img = document.createElement('img');
     img.src = thumbnailSrc;
-    // Only use thumbnail size for gallery - no srcset needed
     img.className = 'gallery-image';
     img.alt = `Gallery image ${index + 1}`;
 
-    // Create lightbox using the imported function
-    const { lightbox, lightboxImg } = createLightbox(photo, index, photos);
-
-    // Add swipe gestures to the lightbox image
-    addSwipeGestures(lightboxImg, index);
+    const { dialog } = createLightbox(photo, index);
 
     link.appendChild(img);
     gallery.appendChild(link);
-    gallery.appendChild(lightbox);
+    gallery.appendChild(dialog);
   });
 
-  // Setup lazy loading for lightbox images
-  setupLightboxLazyLoading();
-
-  // Initialize lightbox navigation with all photos visible initially
-  const allPhotoIndices = photos.map((_, index) => index);
-  updateLightboxNavigation(allPhotoIndices);
+  visiblePhotoIndices = photos.map((_, index) => index);
 
   container.appendChild(gallery);
   return container;
-  // endregion
 }

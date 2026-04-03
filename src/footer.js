@@ -1,24 +1,14 @@
-import './style.css';
 import config from '../config.json';
 import icons from './icons';
 
 export default function getFooter() {
-  // region footer
   const footer = document.createElement('footer');
-  const footerContainer = document.createElement('div');
-  footerContainer.className = 'footer-source';
-  const ghLink = document.createElement('a');
-  ghLink.href = config.gitUrl;
-  ghLink.target = '_blank';
-  const ghIcon = document.createElement('img');
-
-  ghIcon.src = icons['github.svg'];
-  ghIcon.alt = 'github icon';
-
-  ghLink.appendChild(ghIcon);
-  footerContainer.appendChild(ghLink);
-  footer.appendChild(footerContainer);
-  // endregion
-
+  // All values are from trusted config.json, not user input
+  footer.innerHTML = `
+    <div class="footer-source">
+      <a href="${config.gitUrl}" target="_blank">
+        <img src="${icons['github.svg']}" alt="github icon" />
+      </a>
+    </div>`;
   return footer;
 }

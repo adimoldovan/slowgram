@@ -1,3 +1,5 @@
+import { getVisiblePhotoIndices } from './photos';
+
 // Animation timing constants
 const TRANSITION_FAST = '0.6s';
 const TRANSITION_SLOW = '0.8s';
@@ -9,9 +11,13 @@ const SWIPE_TRANSITION_SLOW = `transform ${TRANSITION_SLOW} ${TRANSITION_EASING}
 const MIN_SWIPE_DISTANCE = 50;
 const MAX_VERTICAL_DISTANCE = 100;
 
-export function createLightbox(photo, index, photos) {
-  const nextPhotoId = (index + 1) % photos.length;
-  const prevPhotoId = (index - 1 + photos.length) % photos.length;
+const isTouchDevice = matchMedia('(pointer: coarse)').matches;
+let navigating = false;
+
+export function createLightbox(photo, index) {
+  const dialog = document.createElement('dialog');
+  dialog.className = 'lightbox';
+  dialog.id = `lightbox-${index}`;
 
   const imageSrc = `${photo.src.path}/${photo.src.src}`;
   const imageSrcSet = photo.src.set
@@ -23,15 +29,10 @@ export function createLightbox(photo, index, photos) {
 
   const maxWidth = Math.max(...photo.src.set.map((pair) => parseInt(pair.split(' ')[1], 10)));
 
-  const lightbox = document.createElement('div');
-  lightbox.className = 'lightbox';
-  lightbox.id = `lightbox-${index}`;
-  lightbox.style.touchAction = 'none';
-
-  const lightboxImg = document.createElement('img');
-  lightboxImg.dataset.src = imageSrc;
-  lightboxImg.dataset.srcset = imageSrcSet;
-  lightboxImg.dataset.sizes = `(max-width: 380px) 320px,
+  const img = document.createElement('img');
+  img.dataset.src = imageSrc;
+  img.dataset.srcset = imageSrcSet;
+  img.dataset.sizes = `(max-width: 380px) 320px,
               (max-width: 500px) 480px,
               (max-width: 650px) 600px,
               (max-width: 850px) 800px,
@@ -40,120 +41,124 @@ export function createLightbox(photo, index, photos) {
               (max-width: 2000px) 1920px,
               ${maxWidth}px`;
 
-  const lightboxNext = document.createElement('a');
-  lightboxNext.className = 'slideshow-nav next';
-  lightboxNext.href = `#lightbox-${nextPhotoId}`;
-  lightboxNext.textContent = '→';
+  const closeBtn = document.createElement('button');
+  closeBtn.className = 'slideshow-nav close';
+  closeBtn.textContent = '\u00d7';
+  closeBtn.addEventListener('click', () => dialog.close());
 
-  const lightboxPrev = document.createElement('a');
-  lightboxPrev.className = 'slideshow-nav prev';
-  lightboxPrev.href = `#lightbox-${prevPhotoId}`;
-  lightboxPrev.textContent = '←';
+  dialog.appendChild(img);
+  dialog.appendChild(closeBtn);
 
-  const lightboxClose = document.createElement('a');
-  lightboxClose.className = 'slideshow-nav close';
-  lightboxClose.href = `#p${index}`;
-  lightboxClose.textContent = '×';
+  if (!isTouchDevice) {
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'slideshow-nav next';
+    nextBtn.textContent = '\u2192';
+    nextBtn.addEventListener('click', () => navigateLightbox(index, 1));
 
-  // Check if device is primarily touch-based (mobile/tablet)
-  const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-    navigator.userAgent
-  );
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'slideshow-nav prev';
+    prevBtn.textContent = '\u2190';
+    prevBtn.addEventListener('click', () => navigateLightbox(index, -1));
 
-  if (isMobileDevice) {
-    // Hide navigation buttons on mobile devices
-    lightboxNext.style.display = 'none';
-    lightboxPrev.style.display = 'none';
+    dialog.appendChild(nextBtn);
+    dialog.appendChild(prevBtn);
   }
 
-  lightbox.appendChild(lightboxImg);
-  lightbox.appendChild(lightboxNext);
-  lightbox.appendChild(lightboxClose);
-  lightbox.appendChild(lightboxPrev);
+  // Close on backdrop click
+  dialog.addEventListener('click', (e) => {
+    if (e.target === dialog) dialog.close();
+  });
 
-  return { lightbox, lightboxImg };
+  // Scroll back to the gallery thumbnail on close (but not during navigation)
+  dialog.addEventListener('close', () => {
+    if (navigating) return;
+    const thumbnail = document.getElementById(`p${index}`);
+    if (thumbnail) thumbnail.scrollIntoView({ block: 'center' });
+  });
+
+  addSwipeGestures(img, index, dialog);
+
+  return { dialog, lightboxImg: img };
 }
 
-export function addSwipeGestures(lightboxImg, index) {
+function navigateLightbox(currentIndex, direction) {
+  const visibleIndices = getVisiblePhotoIndices();
+  if (visibleIndices.length === 0) return;
+
+  const currentVisibleIndex = visibleIndices.indexOf(currentIndex);
+  if (currentVisibleIndex === -1) return;
+
+  const targetVisibleIndex =
+    (currentVisibleIndex + direction + visibleIndices.length) % visibleIndices.length;
+  const targetIndex = visibleIndices[targetVisibleIndex];
+
+  const currentDialog = document.getElementById(`lightbox-${currentIndex}`);
+  const targetDialog = document.getElementById(`lightbox-${targetIndex}`);
+
+  if (currentDialog && targetDialog) {
+    navigating = true;
+    currentDialog.close();
+    loadLightboxImage(targetDialog.querySelector('img'));
+    targetDialog.showModal();
+    navigating = false;
+  }
+}
+
+function addSwipeGestures(lightboxImg, index, dialog) {
   let touchStartX = 0;
   let touchStartY = 0;
   let touchEndX = 0;
   let touchEndY = 0;
 
   const img = lightboxImg;
-
-  // Add transition for smooth animations
   img.style.transition = SWIPE_TRANSITION_FAST;
-  // Prevent default touch behaviors
   img.style.touchAction = 'none';
 
   const handleSwipe = () => {
     const swipeDistanceX = touchEndX - touchStartX;
     const swipeDistanceY = touchEndY - touchStartY;
 
-    // Reset transform after swipe
     img.style.transform = 'translate(-50%, -50%)';
     img.style.opacity = '1';
 
-    // Check for swipe up to close (negative Y means up)
+    // Swipe up to close
     if (swipeDistanceY < -MIN_SWIPE_DISTANCE && Math.abs(swipeDistanceX) < MAX_VERTICAL_DISTANCE) {
-      // Animate out before closing
       img.style.transition = SWIPE_TRANSITION_SLOW;
       img.style.transform = 'translate(-50%, -150%)';
       img.style.opacity = '0';
 
       setTimeout(
         () => {
-          window.location.hash = `#p${index}`;
+          dialog.close();
+          img.style.transition = 'none';
+          img.style.transform = 'translate(-50%, -50%)';
+          img.style.opacity = '1';
         },
-        parseInt(TRANSITION_SLOW, 10) * 1000
+        parseFloat(TRANSITION_SLOW) * 1000
       );
       return;
     }
 
-    // Process horizontal swipes for navigation
+    // Horizontal swipe for navigation
     if (
       Math.abs(swipeDistanceX) > MIN_SWIPE_DISTANCE &&
       Math.abs(swipeDistanceY) < MAX_VERTICAL_DISTANCE
     ) {
-      // Get visible photo indices from global state
-      const visibleIndices = window.visiblePhotoIndices || [];
-      if (visibleIndices.length === 0) return;
+      const direction = swipeDistanceX > 0 ? -1 : 1;
+      const translateX = swipeDistanceX > 0 ? '50%' : '-150%';
 
-      // Find current index in visible array
-      const currentVisibleIndex = visibleIndices.indexOf(index);
-      if (currentVisibleIndex === -1) return;
-
-      let targetIndex;
-      let direction;
-
-      if (swipeDistanceX > 0) {
-        // Swipe right - go to previous image
-        const prevVisibleIndex =
-          (currentVisibleIndex - 1 + visibleIndices.length) % visibleIndices.length;
-        targetIndex = visibleIndices[prevVisibleIndex];
-        direction = 'right';
-      } else {
-        // Swipe left - go to next image
-        const nextVisibleIndex = (currentVisibleIndex + 1) % visibleIndices.length;
-        targetIndex = visibleIndices[nextVisibleIndex];
-        direction = 'left';
-      }
-
-      // Animate out (faster for horizontal swipes)
       img.style.transition = SWIPE_TRANSITION_FAST;
-      if (direction === 'left') {
-        img.style.transform = 'translate(-150%, -50%)';
-      } else {
-        img.style.transform = 'translate(50%, -50%)';
-      }
+      img.style.transform = `translate(${translateX}, -50%)`;
       img.style.opacity = '0';
 
       setTimeout(
         () => {
-          window.location.hash = `#lightbox-${targetIndex}`;
+          img.style.transition = 'none';
+          img.style.transform = 'translate(-50%, -50%)';
+          img.style.opacity = '1';
+          navigateLightbox(index, direction);
         },
-        parseInt(TRANSITION_FAST, 10) * 1000
+        parseFloat(TRANSITION_FAST) * 1000
       );
     }
   };
@@ -179,71 +184,28 @@ export function addSwipeGestures(lightboxImg, index) {
   );
 }
 
-export function setupLightboxLazyLoading() {
-  const loadLightboxImage = (lightboxImg) => {
-    const { dataset } = lightboxImg;
-    if (!lightboxImg.src && dataset.src) {
-      // Prepare for entrance animation
+function loadLightboxImage(img) {
+  const { dataset } = img;
+  if (!img.src && dataset.src) {
+    img.style.opacity = '0';
+    img.style.transform = 'translate(-50%, -50%) scale(0.9)';
 
-      lightboxImg.style.opacity = '0';
+    img.src = dataset.src;
+    img.srcset = dataset.srcset;
+    img.sizes = dataset.sizes;
 
-      lightboxImg.style.transform = 'translate(-50%, -50%) scale(0.9)';
+    img.onload = () => {
+      img.style.transition = SWIPE_TRANSITION_FAST;
+      img.style.opacity = '1';
+      img.style.transform = 'translate(-50%, -50%) scale(1)';
+    };
+  }
+}
 
-      lightboxImg.src = dataset.src;
-
-      lightboxImg.srcset = dataset.srcset;
-
-      lightboxImg.sizes = dataset.sizes;
-
-      // Animate entrance when image loads
-
-      lightboxImg.onload = () => {
-        lightboxImg.style.transition = SWIPE_TRANSITION_FAST;
-
-        lightboxImg.style.opacity = '1';
-
-        lightboxImg.style.transform = 'translate(-50%, -50%) scale(1)';
-      };
-    }
-  };
-
-  const handleHashChange = () => {
-    const { hash } = window.location;
-    if (hash.startsWith('#lightbox-')) {
-      // Prevent body scroll when lightbox is open
-      document.body.style.overflow = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.width = '100%';
-
-      const lightbox = document.querySelector(hash);
-      if (lightbox) {
-        const img = lightbox.querySelector('img');
-
-        // Always reset transforms first to clear any previous exit animations
-        img.style.transition = 'none';
-        img.style.transform = 'translate(-50%, -50%)';
-        img.style.opacity = '1';
-
-        // Force reflow to ensure the reset is applied immediately
-        // eslint-disable-next-line no-unused-expressions
-        img.offsetHeight;
-
-        loadLightboxImage(img);
-
-        // Re-enable transition for future animations
-        if (img.src) {
-          img.style.transition = SWIPE_TRANSITION_FAST;
-        }
-      }
-    } else {
-      // Re-enable body scroll when lightbox is closed
-      document.body.style.overflow = '';
-      document.body.style.position = '';
-      document.body.style.width = '';
-    }
-  };
-
-  window.addEventListener('hashchange', handleHashChange);
-  // Also check initial hash
-  handleHashChange();
+export function openLightbox(index) {
+  const dialog = document.getElementById(`lightbox-${index}`);
+  if (dialog) {
+    loadLightboxImage(dialog.querySelector('img'));
+    dialog.showModal();
+  }
 }

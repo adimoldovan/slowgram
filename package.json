@@ -3,13 +3,12 @@
   "version": "1.0.0",
   "description": "an alternative to posting on instagram. add a photo once in a while, no stories, no likes, no comments, no ads, no tracking, no algorithms, no notifications, no pressure. just a photo.",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "clean:dist": "rm -rf dist",
     "clean:deps": "rm -rf node_modules",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "server": "http-server dist -p 8934",
-    "build": "webpack --config webpack.config.js",
     "lint": "eslint .",
-    "watch:build": "chokidar 'src/**/*' -c 'npm run build'",
     "format": "prettier --write \"src/**/*.{js,html,css}\"",
     "format:check": "prettier --check \"src/**/*.{js,html,css}\""
   },
@@ -25,26 +24,17 @@
   "homepage": "https://github.com/adimoldovan/slowgram",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "chokidar-cli": "^3.0.0",
-    "copy-webpack-plugin": "^14.0.0",
-    "css-loader": "^7.1.4",
     "dist-exiftool": "^10.53.0",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.4.0",
-    "html-webpack-plugin": "^5.6.6",
-    "http-server": "^14.1.1",
     "imagemin": "^9.0.1",
     "imagemin-webp": "^8.0.0",
     "node-exiftool": "^2.3.0",
+    "node-vibrant": "^4.0.4",
     "prettier": "^3.8.1",
     "sharp": "^0.34.5",
-    "style-loader": "^4.0.0",
-    "webpack": "^5.105.4",
-    "webpack-cli": "^7.0.2",
-    "workbox-webpack-plugin": "^7.4.0"
-  },
-  "dependencies": {
-    "node-vibrant": "^4.0.4"
+    "vite": "^7.3.1",
+    "vite-plugin-pwa": "^1.2.0"
   }
 }

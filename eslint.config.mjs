@@ -82,7 +82,7 @@ export default [
     },
   },
   {
-    files: ['webpack.config.js', 'bin/**/*.mjs'],
+    files: ['vite.config.js', 'bin/**/*.mjs'],
     languageOptions: {
       globals: {
         ...globals.node,
