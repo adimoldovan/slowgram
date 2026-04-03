@@ -172,17 +172,17 @@ export default async function getPhotosGallery() {
       for (let i = 0; i < segments.length; i++) {
         if (i < firstVisible || i > lastVisible) {
           segments[i].style.transform = 'scaleY(0.5) scaleX(0.85)';
-          continue;
+        } else {
+          const segCenter = i * segWidth + segWidth / 2;
+          const dist = Math.abs(segCenter - scrollCenter);
+          const t = Math.min(dist / halfVisible, 1);
+          // Smooth cubic falloff: stays near 1.0 in center, eases down to 0.5 at edges
+          const scale = 0.5 + 0.5 * (1 - t * t * t);
+          const isSelected = segments[i].classList.contains('selected');
+          const sy = isSelected ? scale * 1.5 : scale;
+          const sx = isSelected ? (0.7 + 0.3 * scale) * 1.15 : 0.7 + 0.3 * scale;
+          segments[i].style.transform = `scaleY(${sy}) scaleX(${sx})`;
         }
-        const segCenter = i * segWidth + segWidth / 2;
-        const dist = Math.abs(segCenter - scrollCenter);
-        const t = Math.min(dist / halfVisible, 1);
-        // Smooth cubic falloff: stays near 1.0 in center, eases down to 0.5 at edges
-        const scale = 0.5 + 0.5 * (1 - t * t * t);
-        const isSelected = segments[i].classList.contains('selected');
-        const sy = isSelected ? scale * 1.5 : scale;
-        const sx = isSelected ? (0.7 + 0.3 * scale) * 1.15 : 0.7 + 0.3 * scale;
-        segments[i].style.transform = `scaleY(${sy}) scaleX(${sx})`;
       }
     }
 
