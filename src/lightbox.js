@@ -107,9 +107,6 @@ function addSwipeGestures(dialog, img, index) {
   let touchEndX = 0;
   let touchEndY = 0;
 
-  img.style.transition = SWIPE_TRANSITION_FAST;
-  dialog.style.touchAction = 'none';
-
   const handleSwipe = () => {
     const swipeDistanceX = touchEndX - touchStartX;
     const swipeDistanceY = touchEndY - touchStartY;
@@ -198,6 +195,7 @@ function loadLightboxImage(img) {
       img.style.transition = SWIPE_TRANSITION_FAST;
       img.style.opacity = '1';
       img.style.transform = 'translate(-50%, -50%) scale(1)';
+      img.onload = null;
     };
   }
 }
@@ -223,13 +221,18 @@ function showSwipeHint(dialog) {
   dialog.appendChild(overlay);
   localStorage.setItem('swipeHintShown', String(Date.now()));
 
+  let dismissed = false;
+  let timer;
   const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
+    clearTimeout(timer);
     overlay.style.opacity = '0';
     setTimeout(() => overlay.remove(), 300);
   };
 
-  dialog.addEventListener('close', dismiss);
-  setTimeout(dismiss, 5000);
+  dialog.addEventListener('close', dismiss, { once: true });
+  timer = setTimeout(dismiss, 5000);
 }
 
 export function openLightbox(index) {

@@ -38,7 +38,7 @@ function filterPhotosByColor(color, count, photos) {
     visiblePhotoIndices.push(item.originalOrder);
   });
 
-  count.textContent = `${matchingItems.length} photos`;
+  count.textContent = `${matchingItems.length} photo${matchingItems.length === 1 ? '' : 's'}`;
 }
 
 function showAllPhotos(photos, count) {
@@ -49,7 +49,7 @@ function showAllPhotos(photos, count) {
   });
 
   visiblePhotoIndices = photos.map((_, index) => index);
-  count.textContent = `${photos.length} photos`;
+  count.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'}`;
 }
 
 export default async function getPhotosGallery() {
@@ -60,8 +60,15 @@ export default async function getPhotosGallery() {
   gallery.id = 'gallery';
   gallery.className = 'gallery';
 
-  const response = await fetch(config.feed.url);
-  const photos = await response.json();
+  let photos;
+  try {
+    const response = await fetch(config.feed.url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    photos = await response.json();
+  } catch {
+    container.textContent = 'Could not load photos.';
+    return container;
+  }
 
   // Extract unique colors
   const allColors = [
@@ -73,7 +80,7 @@ export default async function getPhotosGallery() {
   ].filter(Boolean);
 
   const count = document.createElement('span');
-  count.textContent = `${photos.length} photos`;
+  count.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'}`;
   count.className = 'counter';
   container.appendChild(count);
 
@@ -145,6 +152,7 @@ export default async function getPhotosGallery() {
     const thumbnailSrc = `${photo.src.path}/${minSize}`;
 
     const img = document.createElement('img');
+    if (index >= 6) img.loading = 'lazy';
     img.src = thumbnailSrc;
     img.srcset = thumbnailSet;
     img.sizes = '(min-width: 912px) 300px, 33vw';

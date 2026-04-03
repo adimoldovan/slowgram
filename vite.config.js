@@ -32,6 +32,22 @@ export default defineConfig({
       workbox: {
         clientsClaim: true,
         skipWaiting: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/d35zx8ajzaahp4\.cloudfront\.net\/.*/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'photo-cache',
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              expiration: {
+                maxEntries: 200,
+                maxAgeSeconds: 30 * 24 * 60 * 60,
+              },
+            },
+          },
+        ],
       },
     }),
   ],
