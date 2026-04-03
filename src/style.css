@@ -98,9 +98,8 @@ header p {
 /* Gallery Section */
 .gallery {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 2px;
-  justify-content: center;
   max-width: 912px;
   margin: 2vh auto 0;
   padding-top: 1vh;
@@ -196,6 +195,69 @@ button.prev {
 
 button.next {
   right: 5.2%;
+}
+
+/* Swipe Hint */
+.swipe-hint {
+  position: fixed;
+  inset: 0;
+  z-index: 9999999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  transition: opacity 0.3s ease;
+}
+
+.swipe-hint-arrows {
+  display: grid;
+  grid-template-areas:
+    '.    up   .'
+    'left hand right'
+    '.    down .';
+  gap: 8px;
+  align-items: center;
+  justify-items: center;
+}
+
+.swipe-arrow {
+  font-size: 2rem;
+  opacity: 0.8;
+}
+
+.swipe-arrow.up {
+  grid-area: up;
+}
+.swipe-arrow.down {
+  grid-area: down;
+}
+.swipe-arrow.left {
+  grid-area: left;
+}
+.swipe-arrow.right {
+  grid-area: right;
+}
+
+.swipe-hand {
+  grid-area: hand;
+  font-size: 3rem;
+  opacity: 0.7;
+  filter: grayscale(1) brightness(10);
+}
+
+.swipe-hint-text {
+  margin-top: 1.5rem;
+  font-size: 1rem;
+  opacity: 0.8;
+}
+
+@media (pointer: coarse) {
+  button.prev,
+  button.next {
+    display: none;
+  }
 }
 
 /* Footer Section */

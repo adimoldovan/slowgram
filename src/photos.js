@@ -5,7 +5,7 @@ import { createLightbox, openLightbox } from './lightbox';
 let visiblePhotoIndices = [];
 
 export function getVisiblePhotoIndices() {
-  return visiblePhotoIndices;
+  return [...visiblePhotoIndices];
 }
 
 function filterPhotosByColor(color, count, photos) {
@@ -134,11 +134,20 @@ export default async function getPhotosGallery() {
       openLightbox(index);
     });
 
+    const thumbnailSet = photo.src.set
+      .filter((pair) => parseInt(pair.split(' ')[1], 10) <= 800)
+      .map((pair) => {
+        const parts = pair.split(' ');
+        return `${photo.src.path}/${parts[0]} ${parts[1]}`;
+      })
+      .join(', ');
     const [minSize] = photo.src.set[0].split(' ');
     const thumbnailSrc = `${photo.src.path}/${minSize}`;
 
     const img = document.createElement('img');
     img.src = thumbnailSrc;
+    img.srcset = thumbnailSet;
+    img.sizes = '(min-width: 912px) 300px, 33vw';
     img.className = 'gallery-image';
     img.alt = `Gallery image ${index + 1}`;
 
