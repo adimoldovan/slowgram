@@ -12,11 +12,23 @@ const MIN_SWIPE_DISTANCE = 50;
 const MAX_VERTICAL_DISTANCE = 100;
 
 let navigating = false;
+let hasPushedEntry = false;
+
+export function setNavigating(value) {
+  navigating = value;
+}
+
+function photoSlug(photo) {
+  const segments = photo.src.path.split('/').filter(Boolean);
+  const last = segments.pop() || '';
+  return last.replace(/-+$/, '');
+}
 
 export function createLightbox(photo, index) {
   const dialog = document.createElement('dialog');
   dialog.className = 'lightbox';
   dialog.id = `lightbox-${index}`;
+  dialog.dataset.photoName = photoSlug(photo);
 
   const imageSrc = `${photo.src.path}/${photo.src.src}`;
   const imageSrcSet = photo.src.set
@@ -61,11 +73,20 @@ export function createLightbox(photo, index) {
   dialog.appendChild(prevBtn);
 
   dialog.addEventListener('close', () => {
-    // Re-enable body scroll
     document.body.style.overflow = '';
 
-    // Scroll back to the gallery thumbnail (but not during navigation)
     if (navigating) return;
+
+    // Restore URL: use history.back() if a pushState entry exists, replaceState otherwise
+    if (window.location.pathname !== '/') {
+      if (hasPushedEntry) {
+        hasPushedEntry = false;
+        history.back();
+      } else {
+        history.replaceState(null, '', '/');
+      }
+    }
+
     const thumbnail = document.getElementById(`p${index}`);
     if (thumbnail) thumbnail.scrollIntoView({ block: 'center' });
   });
@@ -95,6 +116,7 @@ function navigateLightbox(currentIndex, direction) {
       currentDialog.close();
       loadLightboxImage(targetDialog.querySelector('img'));
       targetDialog.showModal();
+      history.replaceState(null, '', `/photo/${targetDialog.dataset.photoName}`);
     } finally {
       navigating = false;
     }
@@ -153,6 +175,7 @@ function addSwipeGestures(dialog, img, index) {
           img.style.transition = 'none';
           img.style.transform = 'translate(-50%, -50%)';
           img.style.opacity = '1';
+          if (!dialog.open) return;
           navigateLightbox(index, direction);
         },
         parseFloat(TRANSITION_FAST) * 1000
@@ -235,12 +258,28 @@ function showSwipeHint(dialog) {
   timer = setTimeout(dismiss, 5000);
 }
 
+function showDialog(dialog) {
+  document.body.style.overflow = 'hidden';
+  loadLightboxImage(dialog.querySelector('img'));
+  dialog.showModal();
+  showSwipeHint(dialog);
+}
+
 export function openLightbox(index) {
   const dialog = document.getElementById(`lightbox-${index}`);
   if (dialog) {
-    document.body.style.overflow = 'hidden';
-    loadLightboxImage(dialog.querySelector('img'));
-    dialog.showModal();
-    showSwipeHint(dialog);
+    showDialog(dialog);
+    hasPushedEntry = true;
+    history.pushState({ lightbox: index }, '', `/photo/${dialog.dataset.photoName}`);
+  }
+}
+
+export function openLightboxByName(name) {
+  const dialog = document.querySelector(`dialog[data-photo-name="${CSS.escape(name)}"]`);
+  if (dialog) {
+    showDialog(dialog);
+    history.replaceState(null, '', `/photo/${dialog.dataset.photoName}`);
+  } else {
+    history.replaceState(null, '', '/');
   }
 }
