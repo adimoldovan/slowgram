@@ -1,8 +1,8 @@
 import { getVisiblePhotoIndices } from './photos';
 
 // Animation timing constants
-const TRANSITION_FAST = '0.6s';
-const TRANSITION_SLOW = '0.8s';
+const TRANSITION_FAST = '0.25s';
+const TRANSITION_SLOW = '0.4s';
 const TRANSITION_EASING = 'ease-out';
 const SWIPE_TRANSITION_FAST = `transform ${TRANSITION_FAST} ${TRANSITION_EASING}, opacity ${TRANSITION_FAST} ${TRANSITION_EASING}`;
 const SWIPE_TRANSITION_SLOW = `transform ${TRANSITION_SLOW} ${TRANSITION_EASING}, opacity ${TRANSITION_SLOW} ${TRANSITION_EASING}`;
