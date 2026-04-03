@@ -5,6 +5,9 @@ export default defineConfig({
   build: {
     outDir: 'dist',
   },
+  test: {
+    environment: 'jsdom',
+  },
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',

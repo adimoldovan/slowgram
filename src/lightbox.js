@@ -18,10 +18,19 @@ export function setNavigating(value) {
   navigating = value;
 }
 
-function photoSlug(photo) {
+export function photoSlug(photo) {
   const segments = photo.src.path.split('/').filter(Boolean);
   const last = segments.pop() || '';
   return last.replace(/-+$/, '');
+}
+
+export function getNextIndex(currentIndex, direction, visibleIndices) {
+  if (visibleIndices.length === 0) return -1;
+  const currentVisibleIndex = visibleIndices.indexOf(currentIndex);
+  if (currentVisibleIndex === -1) return -1;
+  const targetVisibleIndex =
+    (currentVisibleIndex + direction + visibleIndices.length) % visibleIndices.length;
+  return visibleIndices[targetVisibleIndex];
 }
 
 export function createLightbox(photo, index) {
@@ -98,14 +107,8 @@ export function createLightbox(photo, index) {
 
 function navigateLightbox(currentIndex, direction) {
   const visibleIndices = getVisiblePhotoIndices();
-  if (visibleIndices.length === 0) return;
-
-  const currentVisibleIndex = visibleIndices.indexOf(currentIndex);
-  if (currentVisibleIndex === -1) return;
-
-  const targetVisibleIndex =
-    (currentVisibleIndex + direction + visibleIndices.length) % visibleIndices.length;
-  const targetIndex = visibleIndices[targetVisibleIndex];
+  const targetIndex = getNextIndex(currentIndex, direction, visibleIndices);
+  if (targetIndex === -1) return;
 
   const currentDialog = document.getElementById(`lightbox-${currentIndex}`);
   const targetDialog = document.getElementById(`lightbox-${targetIndex}`);

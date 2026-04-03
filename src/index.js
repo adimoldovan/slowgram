@@ -4,7 +4,7 @@ import getFooter from './footer';
 import getPhotosGallery from './photos';
 import { openLightboxByName, setNavigating } from './lightbox';
 
-function decodeSlug(encoded) {
+export function decodeSlug(encoded) {
   try {
     return decodeURIComponent(encoded);
   } catch {

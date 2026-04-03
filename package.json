@@ -10,7 +10,10 @@
     "clean:deps": "rm -rf node_modules",
     "lint": "eslint .",
     "format": "prettier --write \"src/**/*.{js,html,css}\"",
-    "format:check": "prettier --check \"src/**/*.{js,html,css}\""
+    "format:check": "prettier --check \"src/**/*.{js,html,css}\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "repository": {
     "type": "git",
@@ -30,11 +33,13 @@
     "globals": "^17.4.0",
     "imagemin": "^9.0.1",
     "imagemin-webp": "^8.0.0",
+    "jsdom": "^29.0.1",
     "node-exiftool": "^2.3.0",
     "node-vibrant": "^4.0.4",
     "prettier": "^3.8.1",
     "sharp": "^0.34.5",
     "vite": "^7.3.1",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.1.2"
   }
 }
