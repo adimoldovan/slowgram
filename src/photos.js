@@ -159,7 +159,7 @@ export default async function getPhotosGallery() {
       return seg;
     }
 
-    let highlightedColor = undefined; // track what's visually highlighted
+    let highlightedColor; // track what's visually highlighted
 
     function highlightCenteredSegment() {
       const scrollCenter = filterScroll.scrollLeft + filterScroll.clientWidth / 2;
@@ -209,14 +209,14 @@ export default async function getPhotosGallery() {
     const singleGradient = buildTrackGradient();
     const oneSetPx = (allColors.length + 1) * segWidth;
     filterTrack.style.backgroundImage = singleGradient;
-    filterTrack.style.backgroundSize = oneSetPx + 'px 100%';
+    filterTrack.style.backgroundSize = `${oneSetPx}px 100%`;
     filterTrack.style.backgroundRepeat = 'repeat-x';
 
     filterScroll.appendChild(filterTrack);
     filterOuter.appendChild(filterScroll);
 
     // Cap width so only one set of colors is visible at most
-    filterOuter.style.maxWidth = oneSetWidth + 'px';
+    filterOuter.style.maxWidth = `${oneSetWidth}px`;
     filterOuter.style.margin = '0.5rem auto';
 
     container.appendChild(filterOuter);
