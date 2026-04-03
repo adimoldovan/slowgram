@@ -297,7 +297,8 @@ button.next {
 
 @media (pointer: coarse) {
   button.prev,
-  button.next {
+  button.next,
+  button.close {
     display: none;
   }
 }

@@ -102,11 +102,7 @@ window.addEventListener('popstate', () => {
 
   if (openDialog && !match) {
     setNavigating(true);
-    try {
-      openDialog.close();
-    } finally {
-      setNavigating(false);
-    }
+    openDialog.close();
   } else if (match) {
     const targetName = decodeSlug(match[1]);
     if (!targetName) {
@@ -114,13 +110,11 @@ window.addEventListener('popstate', () => {
       return;
     }
     if (!openDialog || openDialog.dataset.photoName !== targetName) {
-      setNavigating(true);
-      try {
-        if (openDialog) openDialog.close();
-        openLightboxByName(targetName);
-      } finally {
-        setNavigating(false);
+      if (openDialog) {
+        setNavigating(true);
+        openDialog.close();
       }
+      openLightboxByName(targetName);
     }
   }
 });

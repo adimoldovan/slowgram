@@ -84,7 +84,10 @@ export function createLightbox(photo, index) {
   dialog.addEventListener('close', () => {
     document.body.style.overflow = '';
 
-    if (navigating) return;
+    if (navigating) {
+      navigating = false;
+      return;
+    }
 
     // Restore URL: use history.back() if a pushState entry exists, replaceState otherwise
     if (window.location.pathname !== '/') {
@@ -115,14 +118,10 @@ function navigateLightbox(currentIndex, direction) {
 
   if (currentDialog && targetDialog) {
     navigating = true;
-    try {
-      currentDialog.close();
-      loadLightboxImage(targetDialog.querySelector('img'));
-      targetDialog.showModal();
-      history.replaceState(null, '', `/photo/${targetDialog.dataset.photoName}`);
-    } finally {
-      navigating = false;
-    }
+    currentDialog.close();
+    loadLightboxImage(targetDialog.querySelector('img'));
+    targetDialog.showModal();
+    history.replaceState(null, '', `/photo/${targetDialog.dataset.photoName}`);
   }
 }
 
@@ -186,25 +185,19 @@ function addSwipeGestures(dialog, img, index) {
     }
   };
 
-  dialog.addEventListener(
-    'touchstart',
-    (e) => {
-      touchStartX = e.changedTouches[0].clientX;
-      touchStartY = e.changedTouches[0].clientY;
-    },
-    { passive: true }
-  );
+  dialog.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].clientX;
+    touchStartY = e.changedTouches[0].clientY;
+    touchEndX = touchStartX;
+    touchEndY = touchStartY;
+  });
 
-  dialog.addEventListener(
-    'touchend',
-    (e) => {
-      touchEndX = e.changedTouches[0].clientX;
-      touchEndY = e.changedTouches[0].clientY;
-      img.style.transition = SWIPE_TRANSITION_FAST;
-      handleSwipe();
-    },
-    { passive: true }
-  );
+  dialog.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].clientX;
+    touchEndY = e.changedTouches[0].clientY;
+    img.style.transition = SWIPE_TRANSITION_FAST;
+    handleSwipe();
+  });
 }
 
 function loadLightboxImage(img) {
