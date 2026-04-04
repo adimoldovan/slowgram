@@ -11,6 +11,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'script-defer',
       manifest: {
         name: "Adi's slowgram",
         short_name: 'Slowgram',
@@ -38,7 +39,7 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/d35zx8ajzaahp4\.cloudfront\.net\/.*/,
-            handler: 'CacheFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'photo-cache',
               cacheableResponse: {
