@@ -99,8 +99,11 @@ export function createLightbox(photo, index) {
       }
     }
 
-    const thumbnail = document.getElementById(`p${index}`);
-    if (thumbnail) thumbnail.scrollIntoView({ block: 'center' });
+    // Defer scroll to next frame to let history/URL settle
+    requestAnimationFrame(() => {
+      const thumbnail = document.getElementById(`p${index}`);
+      if (thumbnail) thumbnail.scrollIntoView({ block: 'start' });
+    });
   });
 
   addSwipeGestures(dialog, img, index);

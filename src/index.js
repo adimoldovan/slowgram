@@ -4,6 +4,8 @@ import getFooter from './footer';
 import getPhotosGallery from './photos';
 import { openLightboxByName, setNavigating } from './lightbox';
 
+history.scrollRestoration = 'manual';
+
 export function decodeSlug(encoded) {
   try {
     return decodeURIComponent(encoded);
