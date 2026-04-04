@@ -12,6 +12,7 @@ export default [
       sourceType: 'module',
       globals: {
         ...globals.browser,
+        __COMMIT_HASH__: 'readonly',
       },
     },
     rules: {

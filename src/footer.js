@@ -9,6 +9,7 @@ export default function getFooter() {
       <a href="${config.gitUrl}" target="_blank">
         <img src="${icons['github.svg']}" alt="github icon" />
       </a>
+      <div class="commit-id">${__COMMIT_HASH__}</div>
     </div>`;
   return footer;
 }

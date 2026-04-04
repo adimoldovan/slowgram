@@ -326,6 +326,13 @@ footer {
   color: var(--borders-color);
 }
 
+.commit-id {
+  font-size: 0.7rem;
+  color: var(--borders-color);
+  opacity: 0.6;
+  margin-top: 0.25rem;
+}
+
 footer > div {
   flex: 50%;
 }
