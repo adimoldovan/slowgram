@@ -1,7 +1,18 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'child_process';
+
+let commitHash;
+try {
+  commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+} catch {
+  commitHash = 'unknown';
+}
 
 export default defineConfig({
+  define: {
+    __COMMIT_HASH__: JSON.stringify(commitHash),
+  },
   build: {
     outDir: 'dist',
   },
@@ -11,6 +22,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: 'script-defer',
       manifest: {
         name: "Adi's slowgram",
         short_name: 'Slowgram',
@@ -38,7 +50,7 @@ export default defineConfig({
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/d35zx8ajzaahp4\.cloudfront\.net\/.*/,
-            handler: 'CacheFirst',
+            handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'photo-cache',
               cacheableResponse: {

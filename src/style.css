@@ -1,14 +1,50 @@
 :root {
   --font-color: #333;
-  --bg-color: #333;
+  --bg-color: #fff;
   --contrast-color: #f5f5f5;
   --borders-color: #bfbfbf;
+}
+
+[data-theme='dark'] {
+  --font-color: #e0e0e0;
+  --bg-color: #1a1a1a;
+  --contrast-color: #2a2a2a;
+  --borders-color: #444;
 }
 
 body {
   font-family: -apple-system, 'system-ui', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   color: var(--font-color);
+  background-color: var(--bg-color);
   text-align: center;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
+}
+
+/* Dark Mode Toggle */
+.dark-mode-toggle {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 100;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  color: var(--font-color);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-theme='dark'] header img:not(.profile-picture),
+[data-theme='dark'] footer img {
+  filter: invert(1);
 }
 
 main {
@@ -56,27 +92,14 @@ header p {
   position: relative;
   overflow: hidden;
   margin: 0.5rem 0;
-}
-
-.color-filter-outer::before,
-.color-filter-outer::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 12%;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.color-filter-outer::before {
-  left: 0;
-  background: linear-gradient(to right, white, transparent);
-}
-
-.color-filter-outer::after {
-  right: 0;
-  background: linear-gradient(to left, white, transparent);
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0%,
+    black 14%,
+    black 86%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(to right, transparent 0%, black 14%, black 86%, transparent 100%);
 }
 
 .color-filter-scroll {
@@ -92,6 +115,7 @@ header p {
 
 .color-filter-track {
   display: flex;
+  align-items: center;
   width: max-content;
 }
 
@@ -100,14 +124,13 @@ header p {
   width: 38px;
   height: 24px;
   cursor: pointer;
-  transition: transform 0.2s ease;
   flex-shrink: 0;
-  background: transparent;
+  border-radius: 3px;
+  transition: box-shadow 0.15s ease;
 }
 
 .color-bar-segment.selected,
 .color-bar-all.selected {
-  transform: scaleX(1.15) scaleY(1.5);
   z-index: 1;
   border-radius: 4px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
@@ -274,7 +297,8 @@ button.next {
 
 @media (pointer: coarse) {
   button.prev,
-  button.next {
+  button.next,
+  button.close {
     display: none;
   }
 }
@@ -300,6 +324,13 @@ footer {
 
 .footer-source > a {
   color: var(--borders-color);
+}
+
+.commit-id {
+  font-size: 0.7rem;
+  color: var(--borders-color);
+  opacity: 0.6;
+  margin-top: 0.25rem;
 }
 
 footer > div {

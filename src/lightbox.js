@@ -1,8 +1,8 @@
 import { getVisiblePhotoIndices } from './photos';
 
 // Animation timing constants
-const TRANSITION_FAST = '0.6s';
-const TRANSITION_SLOW = '0.8s';
+const TRANSITION_FAST = '0.25s';
+const TRANSITION_SLOW = '0.4s';
 const TRANSITION_EASING = 'ease-out';
 const SWIPE_TRANSITION_FAST = `transform ${TRANSITION_FAST} ${TRANSITION_EASING}, opacity ${TRANSITION_FAST} ${TRANSITION_EASING}`;
 const SWIPE_TRANSITION_SLOW = `transform ${TRANSITION_SLOW} ${TRANSITION_EASING}, opacity ${TRANSITION_SLOW} ${TRANSITION_EASING}`;
@@ -84,7 +84,10 @@ export function createLightbox(photo, index) {
   dialog.addEventListener('close', () => {
     document.body.style.overflow = '';
 
-    if (navigating) return;
+    if (navigating) {
+      navigating = false;
+      return;
+    }
 
     // Restore URL: use history.back() if a pushState entry exists, replaceState otherwise
     if (window.location.pathname !== '/') {
@@ -96,11 +99,24 @@ export function createLightbox(photo, index) {
       }
     }
 
-    const thumbnail = document.getElementById(`p${index}`);
-    if (thumbnail) thumbnail.scrollIntoView({ block: 'center' });
+    // Defer scroll to next frame to let history/URL settle
+    requestAnimationFrame(() => {
+      const thumbnail = document.getElementById(`p${index}`);
+      if (thumbnail) thumbnail.scrollIntoView({ block: 'start' });
+    });
   });
 
   addSwipeGestures(dialog, img, index);
+
+  dialog.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      navigateLightbox(index, -1);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      navigateLightbox(index, 1);
+    }
+  });
 
   return { dialog, lightboxImg: img };
 }
@@ -115,14 +131,10 @@ function navigateLightbox(currentIndex, direction) {
 
   if (currentDialog && targetDialog) {
     navigating = true;
-    try {
-      currentDialog.close();
-      loadLightboxImage(targetDialog.querySelector('img'));
-      targetDialog.showModal();
-      history.replaceState(null, '', `/photo/${targetDialog.dataset.photoName}`);
-    } finally {
-      navigating = false;
-    }
+    currentDialog.close();
+    loadLightboxImage(targetDialog.querySelector('img'));
+    targetDialog.showModal();
+    history.replaceState(null, '', `/photo/${targetDialog.dataset.photoName}`);
   }
 }
 
@@ -186,25 +198,19 @@ function addSwipeGestures(dialog, img, index) {
     }
   };
 
-  dialog.addEventListener(
-    'touchstart',
-    (e) => {
-      touchStartX = e.changedTouches[0].clientX;
-      touchStartY = e.changedTouches[0].clientY;
-    },
-    { passive: true }
-  );
+  dialog.addEventListener('touchstart', (e) => {
+    touchStartX = e.changedTouches[0].clientX;
+    touchStartY = e.changedTouches[0].clientY;
+    touchEndX = touchStartX;
+    touchEndY = touchStartY;
+  });
 
-  dialog.addEventListener(
-    'touchend',
-    (e) => {
-      touchEndX = e.changedTouches[0].clientX;
-      touchEndY = e.changedTouches[0].clientY;
-      img.style.transition = SWIPE_TRANSITION_FAST;
-      handleSwipe();
-    },
-    { passive: true }
-  );
+  dialog.addEventListener('touchend', (e) => {
+    touchEndX = e.changedTouches[0].clientX;
+    touchEndY = e.changedTouches[0].clientY;
+    img.style.transition = SWIPE_TRANSITION_FAST;
+    handleSwipe();
+  });
 }
 
 function loadLightboxImage(img) {

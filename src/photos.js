@@ -38,7 +38,7 @@ function filterPhotosByColor(color, count, photos) {
     visiblePhotoIndices.push(item.originalOrder);
   });
 
-  count.textContent = `${matchingItems.length} photo${matchingItems.length === 1 ? '' : 's'}`;
+  count.textContent = `${matchingItems.length}/${photos.length} photos`;
 }
 
 function showAllPhotos(photos, count) {
@@ -49,7 +49,7 @@ function showAllPhotos(photos, count) {
   });
 
   visiblePhotoIndices = photos.map((_, index) => index);
-  count.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'}`;
+  count.textContent = `${photos.length} photos`;
 }
 
 export default async function getPhotosGallery() {
@@ -71,10 +71,32 @@ export default async function getPhotosGallery() {
   }
 
   // Extract unique colors, sorted by hue
-  function hexToHue(hex) {
-    const r = parseInt(hex.slice(1, 3), 16) / 255;
-    const g = parseInt(hex.slice(3, 5), 16) / 255;
-    const b = parseInt(hex.slice(5, 7), 16) / 255;
+  const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+  const CSS_COLOR_RE = /^[a-zA-Z]+$/;
+  function isValidColor(c) {
+    return typeof c === 'string' && (HEX_COLOR_RE.test(c) || CSS_COLOR_RE.test(c));
+  }
+  function colorToRgb(color) {
+    if (HEX_COLOR_RE.test(color)) {
+      return [
+        parseInt(color.slice(1, 3), 16) / 255,
+        parseInt(color.slice(3, 5), 16) / 255,
+        parseInt(color.slice(5, 7), 16) / 255,
+      ];
+    }
+    const el = document.createElement('span');
+    el.style.color = color;
+    document.body.appendChild(el);
+    const computed = getComputedStyle(el).color;
+    el.remove();
+    const match = computed.match(/(\d+)/g);
+    if (!match || match.length < 3) return [0, 0, 0];
+    return [+match[0] / 255, +match[1] / 255, +match[2] / 255];
+  }
+
+  function colorToHue(color) {
+    if (typeof color !== 'string') return 0;
+    const [r, g, b] = colorToRgb(color);
     const max = Math.max(r, g, b);
     const min = Math.min(r, g, b);
     const d = max - min;
@@ -93,11 +115,11 @@ export default async function getPhotosGallery() {
         .flatMap((photo) => photo.colors.map((colorObj) => colorObj.color))
     ),
   ]
-    .filter(Boolean)
-    .sort((a, b) => hexToHue(a) - hexToHue(b));
+    .filter(isValidColor)
+    .sort((a, b) => colorToHue(a) - colorToHue(b));
 
   const count = document.createElement('span');
-  count.textContent = `${photos.length} photo${photos.length === 1 ? '' : 's'}`;
+  count.textContent = `${photos.length} photos`;
   count.className = 'counter';
   container.appendChild(count);
 
@@ -118,34 +140,13 @@ export default async function getPhotosGallery() {
 
     let selectedColor = null;
 
-    // Build a smooth continuous gradient for the track background
-    // One set: [all-rainbow, color0, color1, ..., colorN]
-    // Each segment occupies segWidth pixels
-    function buildTrackGradient() {
-      const stops = [];
-      const allRainbow = allColors.slice(0, 6);
-      // "All" segment: mini rainbow within its width
-      const allStopCount = allRainbow.length;
-      for (let i = 0; i < allStopCount; i++) {
-        const pct = (i / (allStopCount - 1)) * segWidth;
-        stops.push(`${allRainbow[i]} ${pct}px`);
-      }
-      // Color segments: mostly solid with short blend at edges
-      allColors.forEach((color, i) => {
-        const start = (i + 1) * segWidth;
-        const end = (i + 2) * segWidth;
-        stops.push(`${color} ${start}px`);
-        stops.push(`${color} ${end - segWidth * 0.1}px`);
-      });
-      return `linear-gradient(to right, ${stops.join(', ')})`;
-    }
-
-    const allGradient = `linear-gradient(135deg, ${allColors.slice(0, 6).join(', ')})`;
+    const allGradient = `linear-gradient(135deg, ${allColors.join(', ')})`;
 
     function createAllSegment() {
       const seg = document.createElement('div');
       seg.className = 'color-bar-all';
       seg.dataset.type = 'all';
+      seg.style.background = allGradient;
       return seg;
     }
 
@@ -154,12 +155,38 @@ export default async function getPhotosGallery() {
       seg.className = 'color-bar-segment';
       seg.title = color;
       seg.dataset.color = color;
-      // Store color for selected state
-      seg.dataset.bg = color;
+      seg.style.background = color;
       return seg;
     }
 
-    let highlightedColor; // track what's visually highlighted
+    function updateSegmentScales() {
+      const scrollCenter = filterScroll.scrollLeft + filterScroll.clientWidth / 2;
+      const halfVisible = filterScroll.clientWidth / 2;
+      const segments = filterTrack.children;
+      // Only process segments roughly in the visible range
+      const firstVisible = Math.max(0, Math.floor((scrollCenter - halfVisible * 1.5) / segWidth));
+      const lastVisible = Math.min(
+        segments.length - 1,
+        Math.ceil((scrollCenter + halfVisible * 1.5) / segWidth)
+      );
+      for (let i = 0; i < segments.length; i++) {
+        if (i < firstVisible || i > lastVisible) {
+          segments[i].style.transform = 'scaleY(0.5) scaleX(0.85)';
+        } else {
+          const segCenter = i * segWidth + segWidth / 2;
+          const dist = Math.abs(segCenter - scrollCenter);
+          const t = Math.min(dist / halfVisible, 1);
+          // Smooth cubic falloff: stays near 1.0 in center, eases down to 0.5 at edges
+          const scale = 0.5 + 0.5 * (1 - t * t * t);
+          const isSelected = segments[i].classList.contains('selected');
+          const sy = isSelected ? scale * 1.5 : scale;
+          const sx = isSelected ? (0.7 + 0.3 * scale) * 1.15 : 0.7 + 0.3 * scale;
+          segments[i].style.transform = `scaleY(${sy}) scaleX(${sx})`;
+        }
+      }
+    }
+
+    let highlightedColor = null; // track what's visually highlighted
 
     function highlightCenteredSegment() {
       const scrollCenter = filterScroll.scrollLeft + filterScroll.clientWidth / 2;
@@ -171,18 +198,17 @@ export default async function getPhotosGallery() {
 
       filterTrack.querySelectorAll('.selected').forEach((el) => {
         el.classList.remove('selected');
-        el.style.background = 'transparent';
       });
 
       if (color === null) {
         filterTrack.querySelectorAll('.color-bar-all').forEach((el) => {
           el.classList.add('selected');
-          el.style.background = allGradient;
         });
       } else {
-        filterTrack.querySelectorAll(`[data-color="${color}"]`).forEach((el) => {
-          el.classList.add('selected');
-          el.style.background = color;
+        filterTrack.querySelectorAll('.color-bar-segment').forEach((el) => {
+          if (el.dataset.color === color) {
+            el.classList.add('selected');
+          }
         });
       }
     }
@@ -205,13 +231,6 @@ export default async function getPhotosGallery() {
       });
     }
 
-    // Apply smooth gradient as track background, repeating for 3 copies
-    const singleGradient = buildTrackGradient();
-    const oneSetPx = (allColors.length + 1) * segWidth;
-    filterTrack.style.backgroundImage = singleGradient;
-    filterTrack.style.backgroundSize = `${oneSetPx}px 100%`;
-    filterTrack.style.backgroundRepeat = 'repeat-x';
-
     filterScroll.appendChild(filterTrack);
     filterOuter.appendChild(filterScroll);
 
@@ -225,10 +244,10 @@ export default async function getPhotosGallery() {
     // "All" is selected by default
     filterTrack.querySelectorAll('.color-bar-all').forEach((el) => {
       el.classList.add('selected');
-      el.style.background = allGradient;
     });
     requestAnimationFrame(() => {
       filterScroll.scrollLeft = oneSetWidth - filterScroll.clientWidth / 2 + segWidth / 2;
+      updateSegmentScales();
     });
 
     let ticking = false;
@@ -243,7 +262,8 @@ export default async function getPhotosGallery() {
         } else if (sl > oneSetWidth * 1.7) {
           filterScroll.scrollLeft = sl - oneSetWidth;
         }
-        // Highlight follows center immediately
+        // Update scales and highlight
+        updateSegmentScales();
         highlightCenteredSegment();
         ticking = false;
       });
