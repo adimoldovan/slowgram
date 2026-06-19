@@ -1,6 +1,14 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'child_process';
+import appConfig from './config.json';
+
+if (!appConfig?.feed?.url) throw new Error('config.json missing feed.url');
+
+const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const feedUrl = new URL(appConfig.feed.url);
+const cdnOrigin = escapeRe(feedUrl.origin);
+const feedFile = escapeRe(feedUrl.pathname.replace(/^\//, ''));
 
 let commitHash;
 try {
@@ -49,7 +57,22 @@ export default defineConfig({
         skipWaiting: true,
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/d35zx8ajzaahp4\.cloudfront\.net\/.*/,
+            urlPattern: new RegExp(`^${cdnOrigin}/${feedFile}$`),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'feed-cache',
+              cacheableResponse: {
+                statuses: [0, 200],
+              },
+              networkTimeoutSeconds: 5,
+              expiration: {
+                maxEntries: 1,
+                maxAgeSeconds: 7 * 24 * 60 * 60,
+              },
+            },
+          },
+          {
+            urlPattern: new RegExp(`^${cdnOrigin}/(?!${feedFile}$)`),
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'photo-cache',
