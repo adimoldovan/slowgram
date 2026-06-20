@@ -2,6 +2,7 @@ import './style.css';
 import getHeader from './header';
 import getFooter from './footer';
 import getPhotosGallery from './photos';
+import { initPullToRefresh } from './pull-to-refresh';
 import { openLightboxByName, setNavigating } from './lightbox';
 
 history.scrollRestoration = 'manual';
@@ -81,6 +82,8 @@ main.appendChild(await getPhotosGallery());
 document.body.appendChild(main);
 document.body.appendChild(getFooter());
 document.body.appendChild(toggle);
+
+initPullToRefresh();
 
 // Deep link: open lightbox if URL is /photo/{name}
 // Also handle GitHub Pages SPA redirect via 404.html

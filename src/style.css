@@ -336,3 +336,53 @@ footer {
 footer > div {
   flex: 50%;
 }
+
+/* Pull-to-refresh */
+.ptr-indicator {
+  position: fixed;
+  top: -44px;
+  left: 50%;
+  z-index: 200;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background-color: var(--contrast-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  transform: translateX(-50%);
+  transition:
+    transform 0.25s,
+    opacity 0.25s;
+  pointer-events: none;
+}
+
+.ptr-indicator.ptr-pulling {
+  transition: none;
+}
+
+.ptr-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--borders-color);
+  border-top-color: var(--font-color);
+  border-radius: 50%;
+}
+
+.ptr-indicator.ptr-refreshing .ptr-spinner {
+  animation: ptr-spin 0.7s linear infinite;
+}
+
+@keyframes ptr-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ptr-indicator.ptr-refreshing .ptr-spinner {
+    animation: none;
+  }
+}
