@@ -469,6 +469,9 @@ async function run() {
   console.log(`➤ Finding images in ${photosDir}`);
   const imageFiles = fs
     .readdirSync(photosDir)
+    // Skip dotfiles, notably macOS AppleDouble sidecars (._foo.jpg) created on
+    // non-HFS+ volumes: they share the image extension but aren't valid images.
+    .filter((file) => !file.startsWith('.'))
     .filter((file) => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file).toLowerCase()));
   if (imageFiles.length === 0) {
     console.log('No image files found in source directory');
