@@ -18,10 +18,10 @@ import {
   photoPermalink,
   resolvePublishedDates,
   toMonthYear,
-} from './rss.mjs';
-import { createClient, pullBucket, syncToS3 } from './s3.mjs';
-import { renderIntoDir, entryAfterRender } from './feed-render.mjs';
-import { extractMeta } from './feed-meta.mjs';
+} from './rss.js';
+import { createClient, pullBucket, syncToS3 } from './s3.js';
+import { renderIntoDir, entryAfterRender } from './feed-render.js';
+import { extractMeta } from './feed-meta.js';
 
 const mirrorDir = fileURLToPath(new URL('../.s3-mirror', import.meta.url));
 
@@ -92,7 +92,7 @@ function parseArgs() {
 
 function showHelp() {
   console.log(`
-Usage: node build-feed.mjs [options]
+Usage: node build-feed.js [options]
 
 Pulls the S3 bucket into .s3-mirror, rebuilds feed.json + rss.xml (preserving
 publication dates), then syncs .s3-mirror back to S3 after a confirmation prompt.

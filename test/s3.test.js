@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planSync, contentTypeFor, cacheControlFor, safeMirrorPath } from '../bin/s3.mjs';
+import { planSync, contentTypeFor, cacheControlFor, safeMirrorPath } from '../bin/s3.js';
 
 const f = (key, size) => ({ key, size, absPath: `/abs/${key}` });
 

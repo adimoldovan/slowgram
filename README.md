@@ -1,6 +1,6 @@
 # slowgram
 
-A static photo gallery PWA. Photos are served from a CDN as responsive WebP images with EXIF metadata (camera, location, date). The frontend is vanilla JS bundled with Vite — no framework. Features a lightbox with swipe navigation and color-based filtering using dominant colors extracted from each photo. A build script (`bin/build-feed.mjs`) processes source images: resizes, converts to WebP, reads EXIF data, extracts colors via node-vibrant, and outputs a JSON feed.
+A static photo gallery PWA. Photos are served from a CDN as responsive WebP images with EXIF metadata (camera, location, date). The frontend is vanilla JS bundled with Vite — no framework. Features a lightbox with swipe navigation and color-based filtering using dominant colors extracted from each photo. A build script (`bin/build-feed.js`) processes source images: resizes, converts to WebP, reads EXIF data, extracts colors via node-vibrant, and outputs a JSON feed.
 
 ## Development
 
@@ -21,18 +21,18 @@ npm run format:check  # prettier (check only)
 
 ## Publishing photos (build + sync)
 
-`bin/build-feed.mjs` is the single tool for publishing. It mirrors the S3
+`bin/build-feed.js` is the single tool for publishing. It mirrors the S3
 bucket into a local `.s3-mirror/` folder (git-ignored), reuses already-processed
 photos, processes any new ones from `SLOWGRAM_SOURCE_PATH`, regenerates
 `feed.json` and `rss.xml`, then syncs `.s3-mirror` back to S3 via the AWS SDK —
 after asking for confirmation.
 
 ```bash
-node bin/build-feed.mjs              # pull, build new photos, prompt, sync
-node bin/build-feed.mjs --skip-sync  # build into .s3-mirror only (no upload)
-node bin/build-feed.mjs --sync-only  # upload existing .s3-mirror (no rebuild)
-node bin/build-feed.mjs --rebuild-all  # reprocess every photo
-node bin/build-feed.mjs --help
+node bin/build-feed.js              # pull, build new photos, prompt, sync
+node bin/build-feed.js --skip-sync  # build into .s3-mirror only (no upload)
+node bin/build-feed.js --sync-only  # upload existing .s3-mirror (no rebuild)
+node bin/build-feed.js --rebuild-all  # reprocess every photo
+node bin/build-feed.js --help
 ```
 
 Environment:

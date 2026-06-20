@@ -135,6 +135,6 @@ dist
 .superpowers/
 memory/
 
-# Local mirror of the S3 bucket, rebuilt by bin/build-feed.mjs
+# Local mirror of the S3 bucket, rebuilt by bin/build-feed.js
 .s3-mirror/
 docs/superpowers/

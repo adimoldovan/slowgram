@@ -1,5 +1,5 @@
 // Single source of truth for a photo's identity in URLs. Shared by the frontend
-// deep-link routing (src/lightbox.js) and the build's RSS <link>s (bin/rss.mjs)
+// deep-link routing (src/lightbox.js) and the build's RSS <link>s (bin/rss.js)
 // so a feed item always points at the same /photo/{slug} the app generates.
 // Change the rule here and both sides move together — they cannot drift apart.
 

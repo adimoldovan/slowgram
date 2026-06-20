@@ -1,7 +1,7 @@
 import { getVisiblePhotoIndices } from './photos';
 // photoSlug lives in the shared photo-identity module so the RSS feed's
-// /photo/{slug} links (bin/rss.mjs) stay in lockstep with this routing.
-import { photoSlug } from './photo-id.mjs';
+// /photo/{slug} links (bin/rss.js) stay in lockstep with this routing.
+import { photoSlug } from './photo-id.js';
 
 export { photoSlug };
 

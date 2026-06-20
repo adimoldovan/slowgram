@@ -1,11 +1,11 @@
 // Pure helpers for generating an RSS 2.0 feed from processed photo data.
-// Kept side-effect free so they can be unit tested; build-feed.mjs supplies
+// Kept side-effect free so they can be unit tested; build-feed.js supplies
 // the filesystem-derived bits (enclosure byte length) and writes the result.
 
 // photoId/photoSlug come from the frontend's shared module so feed <link>s
 // resolve to the same /photo/{slug} the app's routing produces. Re-exported
-// here for build-feed.mjs and the tests that already import them from rss.mjs.
-import { photoId, photoSlug } from '../src/photo-id.mjs';
+// here for build-feed.js and the tests that already import them from rss.js.
+import { photoId, photoSlug } from '../src/photo-id.js';
 
 export { photoId, photoSlug };
 

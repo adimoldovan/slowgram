@@ -2,9 +2,9 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { renderIntoDir, entryAfterRender } from '../bin/feed-render.mjs';
-import { extractMeta } from '../bin/feed-meta.mjs';
-import { formatLocation } from '../bin/rss.mjs';
+import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
+import { extractMeta } from '../bin/feed-meta.js';
+import { formatLocation } from '../bin/rss.js';
 
 describe('extractMeta', () => {
   const base = { DateTimeOriginal: '2024:03:15 09:30:00' };

@@ -10,7 +10,7 @@ import {
   photoSlug,
   photoPermalink,
   resolvePublishedDates,
-} from '../bin/rss.mjs';
+} from '../bin/rss.js';
 import { photoSlug as frontendPhotoSlug } from '../src/lightbox';
 
 const photo = (name, takenMs) => ({
