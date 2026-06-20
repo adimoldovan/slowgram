@@ -7,7 +7,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import { planPhoto, reportUpdates } from '../bin/feed-build.js';
+import { planPhoto, reportUpdates } from '../bin/pipeline.js';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
 import { extractMeta } from '../bin/feed-meta.js';
 import {

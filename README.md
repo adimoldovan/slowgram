@@ -1,6 +1,6 @@
 # slowgram
 
-A static photo gallery PWA. Photos are served from a CDN as responsive WebP images with EXIF metadata (camera, location, date). The frontend is vanilla JS bundled with Vite — no framework. Features a lightbox with swipe navigation and color-based filtering using dominant colors extracted from each photo. A build script (`bin/build-feed.js`) processes source images: resizes, converts to WebP, reads EXIF data, extracts colors via node-vibrant, and outputs a JSON feed.
+A static photo gallery PWA. Photos are served from a CDN as responsive WebP images with EXIF metadata (camera, location, date). The frontend is vanilla JS bundled with Vite — no framework. Features a lightbox with swipe navigation and color-based filtering using dominant colors extracted from each photo. A CLI (`slowgram`) processes source images: resizes, converts to WebP, reads EXIF data, extracts colors via node-vibrant, and outputs a JSON feed.
 
 ## Development
 
@@ -21,19 +21,21 @@ npm run format:check  # prettier (check only)
 
 ## Publishing photos (build + sync)
 
-`bin/build-feed.js` is the single tool for publishing. It mirrors the S3
-bucket into a local `.s3-mirror/` folder (git-ignored), reuses already-processed
-photos, processes any new ones from `SLOWGRAM_SOURCE_PATH`, regenerates
-`feed.json` and `rss.xml`, then syncs `.s3-mirror` back to S3 via the AWS SDK —
-after asking for confirmation.
+`slowgram` is the single tool for publishing. It mirrors the S3 bucket into a
+local `.s3-mirror/` folder (git-ignored), reuses already-processed photos,
+processes any new ones from `SLOWGRAM_SOURCE_PATH`, regenerates `feed.json` and
+`rss.xml`, then syncs `.s3-mirror` back to S3 via the AWS SDK — after asking
+for confirmation.
+
+Install the command once with `npm link` (or run via `npx slowgram`).
 
 ```bash
-node bin/build-feed.js              # pull, build new photos, prompt, sync
-node bin/build-feed.js --skip-sync  # build into .s3-mirror only (no upload)
-node bin/build-feed.js --sync-only  # upload existing .s3-mirror (no rebuild)
-node bin/build-feed.js --rebuild-all  # reprocess every photo
-node bin/build-feed.js --check-for-updates  # report what would rebuild, then exit
-node bin/build-feed.js --help
+slowgram build              # pull, build new photos, prompt, sync
+slowgram build --skip-sync  # build into .s3-mirror only (no upload)
+slowgram sync               # upload existing .s3-mirror (no rebuild)
+slowgram build --rebuild-all  # reprocess every photo
+slowgram check              # report what would rebuild/prune, then exit
+slowgram help
 ```
 
 Environment:
@@ -50,7 +52,7 @@ Notes:
   delete). The script refuses to sync an empty `.s3-mirror` as a safeguard.
 - **Only new photos are processed** by default; pass `--rebuild-all` after
   changing sizes or WebP quality.
-- **`--check-for-updates`** is read-only: it pulls the mirror, then reports which
+- **`slowgram check`** is read-only: it pulls the mirror, then reports which
   photos would be rebuilt (an **image** update for a new photo or pixel edit, a
   **metadata** update for a metadata-only edit) and which would be pruned — then
   exits without building or syncing.
