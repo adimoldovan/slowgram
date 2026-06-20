@@ -26,6 +26,8 @@
   },
   "homepage": "https://github.com/adimoldovan/slowgram",
   "devDependencies": {
+    "@aws-sdk/client-s3": "^3",
+    "@aws-sdk/lib-storage": "^3",
     "@eslint/js": "^10.0.1",
     "dist-exiftool": "^10.53.0",
     "eslint": "^10.1.0",
