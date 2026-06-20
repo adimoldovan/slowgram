@@ -129,6 +129,12 @@ export function buildRss({
     return lines.join('\n');
   });
 
+  // Omit lastBuildDate entirely when we have no real timestamp rather than
+  // emitting the Unix epoch, which some readers treat as "never updated".
+  const buildMs = lastBuildMs ?? items[0]?.pubDateMs;
+  const lastBuild =
+    buildMs != null ? `    <lastBuildDate>${toRfc822(buildMs)}</lastBuildDate>` : null;
+
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
@@ -137,7 +143,7 @@ export function buildRss({
     `    <link>${escapeXml(link)}</link>`,
     `    <description>${escapeXml(description)}</description>`,
     `    <language>${escapeXml(language)}</language>`,
-    `    <lastBuildDate>${toRfc822(lastBuildMs ?? items[0]?.pubDateMs ?? 0)}</lastBuildDate>`,
+    ...(lastBuild ? [lastBuild] : []),
     ...(atomSelf ? [atomSelf] : []),
     ...(channelImage ? [channelImage] : []),
     ...itemXml,

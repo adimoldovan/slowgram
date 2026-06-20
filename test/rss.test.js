@@ -167,6 +167,34 @@ describe('buildRss', () => {
     expect(escaped).toContain('<title>Tom &amp; Jerry</title>');
   });
 
+  it('keeps a literal "]]>" in a description from breaking the CDATA section', () => {
+    const out = buildRss({
+      title: 't',
+      link: 'https://x',
+      description: 'd',
+      lastBuildMs: Date.UTC(2026, 5, 20, 15, 0, 0),
+      items: [
+        {
+          title: 'x',
+          link: 'https://x',
+          guid: 'g',
+          pubDateMs: Date.UTC(2026, 5, 20, 14, 0, 0),
+          descriptionHtml: '<p>danger ]]> here</p>',
+        },
+      ],
+    });
+    expect(out).not.toContain('danger ]]> here'); // raw sequence must be split
+    const doc = new DOMParser().parseFromString(out, 'application/xml');
+    expect(doc.querySelector('parsererror')).toBeNull();
+    expect(doc.querySelector('item > description').textContent).toContain('danger ]]> here');
+  });
+
+  it('omits lastBuildDate (no epoch fallback) when no timestamp is available', () => {
+    const out = buildRss({ title: 't', link: 'https://x', description: 'd', items: [] });
+    expect(out).not.toContain('<lastBuildDate>');
+    expect(out).not.toContain('1970');
+  });
+
   it('produces well-formed XML (parses without errors)', () => {
     // jsdom (test environment) provides DOMParser; XML mode reports a
     // <parsererror> element on malformed input.

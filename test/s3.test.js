@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planSync, contentTypeFor, cacheControlFor } from '../bin/s3.mjs';
+import { planSync, contentTypeFor, cacheControlFor, safeMirrorPath } from '../bin/s3.mjs';
 
 const f = (key, size) => ({ key, size, absPath: `/abs/${key}` });
 
@@ -36,6 +36,37 @@ describe('planSync', () => {
     ];
     const { toUpload } = planSync(local, remote, ['feed.json', 'rss.xml']);
     expect(toUpload.map((u) => u.key).sort()).toEqual(['feed.json', 'rss.xml']);
+  });
+
+  it('does not fabricate uploads for alwaysUpload keys absent locally', () => {
+    const local = [f('a.webp', 100)];
+    const remote = [{ key: 'a.webp', size: 100 }];
+    const { toUpload } = planSync(local, remote, ['feed.json', 'rss.xml']);
+    expect(toUpload).toEqual([]);
+  });
+});
+
+describe('safeMirrorPath', () => {
+  const mirror = '/tmp/mirror';
+
+  it('resolves normal nested keys inside the mirror', () => {
+    expect(safeMirrorPath(mirror, 'sunset/sunset-1920w.webp')).toBe(
+      '/tmp/mirror/sunset/sunset-1920w.webp'
+    );
+    expect(safeMirrorPath(mirror, 'feed.json')).toBe('/tmp/mirror/feed.json');
+  });
+
+  it('rejects keys that escape the mirror via ..', () => {
+    expect(safeMirrorPath(mirror, '../etc/passwd')).toBeNull();
+    expect(safeMirrorPath(mirror, '../../etc/passwd')).toBeNull();
+    expect(safeMirrorPath(mirror, 'a/../../b')).toBeNull();
+  });
+
+  it('rejects absolute keys, NUL bytes and empty keys', () => {
+    expect(safeMirrorPath(mirror, '/etc/passwd')).toBeNull();
+    expect(safeMirrorPath(mirror, 'a\0b')).toBeNull();
+    expect(safeMirrorPath(mirror, '')).toBeNull();
+    expect(safeMirrorPath(mirror, 42)).toBeNull();
   });
 });
 

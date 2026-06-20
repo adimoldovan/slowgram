@@ -49,6 +49,21 @@ export function planSync(local, remote, alwaysUpload = []) {
   return { toUpload, toDelete };
 }
 
+// Resolve an S3 key to an absolute path inside mirrorDir, or null if the key
+// would escape it (path traversal via "../", absolute keys, or NUL bytes).
+// We own the bucket, but a corrupt/hostile key must never let a pull write
+// outside the mirror.
+export function safeMirrorPath(mirrorDir, key) {
+  if (typeof key !== 'string' || key.length === 0 || key.includes('\0')) return null;
+  // Reject "..", as well as empty segments (leading "/", "//") that would make
+  // the key absolute-ish or ambiguous.
+  if (key.split('/').some((seg) => seg === '..' || seg === '')) return null;
+  const absPath = path.join(mirrorDir, ...key.split('/'));
+  const rel = path.relative(mirrorDir, absPath);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  return absPath;
+}
+
 // Recursively list files under dir as { key, size, absPath } with posix keys.
 export function walkFiles(dir) {
   const out = [];
@@ -104,17 +119,20 @@ export async function pullBucket(client, bucket, mirrorDir) {
   const remote = await listAllObjects(client, bucket);
   let downloaded = 0;
   let skipped = 0;
+  let skippedUnsafe = 0;
   for (const o of remote) {
-    const absPath = path.join(mirrorDir, ...o.key.split('/'));
-    const exists = fs.existsSync(absPath) && fs.statSync(absPath).size === o.size;
-    if (exists) {
+    const absPath = safeMirrorPath(mirrorDir, o.key);
+    if (!absPath) {
+      console.warn(`⚠️  Skipping unsafe S3 key: ${o.key}`);
+      skippedUnsafe++;
+    } else if (fs.existsSync(absPath) && fs.statSync(absPath).size === o.size) {
       skipped++;
     } else {
       await downloadObject(client, bucket, o.key, absPath);
       downloaded++;
     }
   }
-  return { downloaded, skipped };
+  return { downloaded, skipped, skippedUnsafe };
 }
 
 async function uploadFile(client, bucket, file) {

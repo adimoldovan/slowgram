@@ -307,7 +307,10 @@ async function processImage(file, index, photosDir, total, flags) {
     image.colors = await extractColors(filePath);
 
     const parsedPath = path.parse(filePath);
-    const [originalWidth] = data.ImageSize.split('x');
+    const originalWidth = parseInt(String(data.ImageSize).split('x')[0], 10);
+    if (!Number.isFinite(originalWidth)) {
+      throw new Error(`Unparseable ImageSize "${data.ImageSize}"`);
+    }
     image.src = { path: `${config.feed.photos}/${parsedPath.name}`, set: [] };
 
     if (flags.skipResize && flags.skipConvert) {
@@ -386,11 +389,11 @@ function generateRss(images, dir) {
     const title = image.title || loc || image.dateTaken.original || 'Photo';
     const meta = [image.camera, loc, image.dateTaken.original].filter(Boolean).join(' · ');
 
-    let length;
+    let length = 0;
     try {
       length = fs.statSync(`${dir}/${id}/${image.src.src}`).size;
     } catch {
-      length = 0;
+      console.log(`⚠️  ${id}: enclosure file missing, omitting <enclosure>.`);
     }
 
     return {
@@ -399,7 +402,11 @@ function generateRss(images, dir) {
       guid: largestUrl,
       pubDateMs: image.published,
       descriptionHtml: buildItemDescription({ imgSrc: largestUrl, srcset, alt: title, meta }),
-      enclosure: { url: largestUrl, length, type: mimeForExt(path.extname(image.src.src)) },
+      // Only advertise an enclosure when we know its real byte length; some
+      // readers reject length="0".
+      enclosure: length
+        ? { url: largestUrl, length, type: mimeForExt(path.extname(image.src.src)) }
+        : undefined,
     };
   });
 
@@ -467,6 +474,22 @@ async function run() {
     console.log('No image files found in source directory');
     return;
   }
+
+  // Photo identity is the extension-less basename (it becomes the mirror dir,
+  // the CDN folder and the feed/published key). Two source files that share a
+  // basename (e.g. sunset.jpg + sunset.png) would clobber each other's output
+  // and conflate publication dates, so refuse rather than silently lose a photo.
+  const byId = new Map();
+  for (const file of imageFiles) {
+    const id = path.parse(file).name;
+    if (byId.has(id)) {
+      throw new Error(
+        `Duplicate photo id "${id}" from "${byId.get(id)}" and "${file}". ` +
+          'Source filenames must have unique basenames.'
+      );
+    }
+    byId.set(id, file);
+  }
   console.log(`➤ Found ${imageFiles.length} image files`);
 
   const activeFlags = [];
@@ -508,6 +531,15 @@ async function run() {
     if (e.published != null) knownPublished[photoId(e)] = e.published;
   }
   const seed = Object.keys(knownPublished).length ? knownPublished : null;
+  if (seed) {
+    const missing = existingFeed.filter((e) => e.published == null).map(photoId);
+    if (missing.length) {
+      console.log(
+        `⚠️  ${missing.length} existing photo(s) lack a publication date and will be ` +
+          `stamped with now (re-dating to the top): ${missing.join(', ')}`
+      );
+    }
+  }
   const { map: published, firstRun } = resolvePublishedDates(entries, seed, Date.now());
   if (firstRun) {
     console.log("➤ Seeding publication dates from each photo's date taken (first run).");
