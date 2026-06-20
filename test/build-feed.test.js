@@ -5,6 +5,7 @@ import path from 'path';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
 import { extractMeta } from '../bin/feed-meta.js';
 import { decideFromSource, decideFromPixels } from '../bin/feed-plan.js';
+import { pruneMirror } from '../bin/feed-prune.js';
 import { formatLocation } from '../bin/rss.js';
 
 describe('extractMeta', () => {
@@ -138,6 +139,46 @@ describe('entryAfterRender', () => {
 
   it('drops the photo only when the render failed and there is no existing entry', () => {
     expect(entryAfterRender(null, undefined)).toEqual({ entry: null, status: 'failed' });
+  });
+});
+
+describe('pruneMirror', () => {
+  let root;
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'slowgram-'));
+    fs.mkdirSync(path.join(root, 'keep'));
+    fs.mkdirSync(path.join(root, 'gone'));
+    fs.writeFileSync(path.join(root, 'keep', 'a-320w.webp'), 'a');
+    fs.writeFileSync(path.join(root, 'gone', 'b-320w.webp'), 'b');
+    fs.writeFileSync(path.join(root, 'feed.json'), '[]');
+  });
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('removes dirs whose id is not in the keep set and reports them', () => {
+    const pruned = pruneMirror(root, new Set(['keep']));
+    expect(pruned).toEqual(['gone']);
+    expect(fs.existsSync(path.join(root, 'gone'))).toBe(false);
+    expect(fs.existsSync(path.join(root, 'keep'))).toBe(true);
+  });
+
+  it('leaves files in the mirror root untouched (only prunes directories)', () => {
+    pruneMirror(root, new Set(['keep']));
+    expect(fs.existsSync(path.join(root, 'feed.json'))).toBe(true);
+  });
+
+  it('keeps every dir when they are all in the keep set', () => {
+    expect(pruneMirror(root, new Set(['keep', 'gone']))).toEqual([]);
+    expect(fs.existsSync(path.join(root, 'gone'))).toBe(true);
+  });
+
+  it('dryRun reports what would be pruned without deleting anything (f-45)', () => {
+    const pruned = pruneMirror(root, new Set(['keep']), { dryRun: true });
+    expect(pruned).toEqual(['gone']);
+    // The renditions must survive a --skip-sync dry run so a later --sync-only
+    // does not push the delete to S3 unseen.
+    expect(fs.existsSync(path.join(root, 'gone', 'b-320w.webp'))).toBe(true);
   });
 });
 

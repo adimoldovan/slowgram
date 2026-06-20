@@ -23,6 +23,7 @@ import { createClient, pullBucket, syncToS3 } from './s3.js';
 import { renderIntoDir, entryAfterRender } from './feed-render.js';
 import { extractMeta } from './feed-meta.js';
 import { decideFromSource, decideFromPixels } from './feed-plan.js';
+import { pruneMirror } from './feed-prune.js';
 
 const mirrorDir = fileURLToPath(new URL('../.s3-mirror', import.meta.url));
 
@@ -153,17 +154,6 @@ function hashFile(filePath) {
 async function hashPixels(filePath) {
   const buffer = await sharp(filePath).rotate().raw().toBuffer();
   return crypto.createHash('sha256').update(buffer).digest('hex');
-}
-
-// Remove photo dirs in .s3-mirror that are no longer in the feed so the mirror
-// (and the subsequent S3 --delete) matches the current source set exactly.
-function pruneMirror(dir, keepIds) {
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory() && !keepIds.has(entry.name)) {
-      fs.rmSync(path.join(dir, entry.name), { recursive: true, force: true });
-      console.log(`  ➤ pruned ${entry.name}`);
-    }
-  }
 }
 
 async function convertImageToWebp(dir, fileName) {
@@ -646,18 +636,23 @@ async function run() {
   // 7. RSS.
   generateRss(entries, mirrorDir);
 
-  // 8. Prune mirror dirs whose source photo is gone. Keyed on the *source* set,
-  //    not the feed entries: a photo that failed to render this run is absent
-  //    from the feed but still in source, so its renditions must survive — a
-  //    transient failure must never cascade into an S3 deletion. Genuinely
-  //    removed source photos are no longer in byId, so they are still pruned.
-  pruneMirror(mirrorDir, new Set(byId.keys()));
+  // 8. Prune mirror dirs whose source photo is gone, then sync. Keyed on the
+  //    *source* set, not the feed entries: a photo that failed to render this
+  //    run is absent from the feed but still in source, so its renditions must
+  //    survive — a transient failure must never cascade into an S3 deletion.
+  //    Genuinely removed source photos are no longer in byId, so they are pruned.
+  const keepIds = new Set(byId.keys());
 
-  // 9. Sync up (unless skipped).
+  // 9. Sync up (unless skipped). Under --skip-sync the prune runs report-only:
+  //    that flag is a non-destructive dry run, so it must not delete renditions
+  //    from the mirror — a later --sync-only would otherwise push those deletes
+  //    to S3 with no delete list ever shown at build time. (f-45)
   if (flags.skipSync) {
+    pruneMirror(mirrorDir, keepIds, { dryRun: true });
     console.log('➤ --skip-sync set; .s3-mirror built but not uploaded.');
     return;
   }
+  pruneMirror(mirrorDir, keepIds);
   await syncToS3(client, bucket, mirrorDir, { confirm });
 }
 
