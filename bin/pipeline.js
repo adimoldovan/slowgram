@@ -440,7 +440,7 @@ function generateRss(images, dir) {
   return limited.length;
 }
 
-// Read-only report for --check-for-updates: classify every source photo with
+// Read-only report for `slowgram check`: classify every source photo with
 // planPhoto (no rendering) and list the ones a build would touch, with their
 // update type (image vs metadata), plus the photos that would be pruned because
 // their source is gone. Mirrors the build's decision path so the report can't
@@ -487,7 +487,7 @@ export async function reportUpdates(imageFiles, photosDir, existingMap, keepIds,
   } else {
     ui.success(
       `${pending} update(s): ${imageCount} image, ${metadataCount} metadata, ` +
-        `${removals.length} removal(s). Run without --check-for-updates to build.`
+        `${removals.length} removal(s). Run "slowgram build" to build.`
     );
   }
 
@@ -505,12 +505,8 @@ export async function runSync() {
   const { bucket, client } = buildContext();
   ui.startPhases(['Sync']);
   ui.phase('Sync');
-  const sp = ui.spinner('Uploading .s3-mirror to S3');
-  try {
-    await syncToS3(client, bucket, defaultMirrorDir, { confirm });
-    sp.succeed('Sync complete');
-  } catch (e) { sp.fail('Sync failed'); throw e; }
-  return { command: 'sync', synced: true };
+  const res = await syncToS3(client, bucket, defaultMirrorDir, { confirm });
+  return { command: 'sync', synced: !res.cancelled };
 }
 
 // Pull + scan + dedupe, shared by build and check. Returns the data both need.
@@ -656,12 +652,8 @@ export async function runBuild(options) {
   }
   const removals = pruneMirror(defaultMirrorDir, keepIds);
   ui.phase('Sync');
-  const sp = ui.spinner('Uploading .s3-mirror to S3');
-  try {
-    await syncToS3(client, bucket, defaultMirrorDir, { confirm });
-    sp.succeed('Sync complete');
-  } catch (e) { sp.fail('Sync failed'); throw e; }
-  return result(true, removals.length);
+  const res = await syncToS3(client, bucket, defaultMirrorDir, { confirm });
+  return result(!res.cancelled, removals.length);
 
   function result(synced, pruned) {
     return {
