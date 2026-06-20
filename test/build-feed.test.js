@@ -4,7 +4,12 @@ import os from 'os';
 import path from 'path';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
 import { extractMeta } from '../bin/feed-meta.js';
-import { decideFromSource, decideFromPixels } from '../bin/feed-plan.js';
+import {
+  decideFromSource,
+  decideFromPixels,
+  describeUpdate,
+  renderReason,
+} from '../bin/feed-plan.js';
 import { pruneMirror } from '../bin/feed-prune.js';
 import { formatLocation } from '../bin/rss.js';
 
@@ -18,7 +23,9 @@ describe('extractMeta', () => {
   });
 
   it('joins Make and Model into camera', () => {
-    expect(extractMeta({ ...base, Make: 'Fujifilm', Model: 'X100V' }).camera).toBe('Fujifilm X100V');
+    expect(extractMeta({ ...base, Make: 'Fujifilm', Model: 'X100V' }).camera).toBe(
+      'Fujifilm X100V'
+    );
   });
 
   it('omits absent camera parts instead of emitting "undefined"', () => {
@@ -96,9 +103,50 @@ describe('decideFromPixels', () => {
   });
 });
 
+describe('renderReason', () => {
+  it('reports a new photo when there is no existing entry', () => {
+    expect(renderReason({ rebuildAll: false, hasExisting: false })).toBe('new photo');
+  });
+
+  it('reports missing renditions for an existing entry that must re-render', () => {
+    expect(renderReason({ rebuildAll: false, hasExisting: true })).toBe('renditions missing');
+  });
+
+  it('reports rebuild-all, taking precedence over the new/existing distinction', () => {
+    expect(renderReason({ rebuildAll: true, hasExisting: false })).toBe('rebuild-all');
+    expect(renderReason({ rebuildAll: true, hasExisting: true })).toBe('rebuild-all');
+  });
+});
+
+describe('describeUpdate', () => {
+  it('reports a render as an image update and carries the reason through', () => {
+    expect(describeUpdate({ action: 'render', reason: 'new photo' })).toEqual({
+      kind: 'image',
+      reason: 'new photo',
+    });
+    expect(describeUpdate({ action: 'render', reason: 'pixels changed' })).toEqual({
+      kind: 'image',
+      reason: 'pixels changed',
+    });
+  });
+
+  it('reports a refresh as a metadata update', () => {
+    expect(describeUpdate({ action: 'refresh', reason: 'metadata only' })).toEqual({
+      kind: 'metadata',
+      reason: 'metadata only',
+    });
+  });
+
+  it('returns null for a reused photo (no update to report)', () => {
+    expect(describeUpdate({ action: 'reuse', reason: 'unchanged' })).toBeNull();
+  });
+});
+
 describe('formatLocation', () => {
   it('shows the city when present', () => {
-    expect(formatLocation({ city: 'Cluj', state: 'Cluj', country: 'Romania' })).toBe('Cluj, Romania');
+    expect(formatLocation({ city: 'Cluj', state: 'Cluj', country: 'Romania' })).toBe(
+      'Cluj, Romania'
+    );
   });
 
   it('falls back to the state when there is no city', () => {
@@ -110,7 +158,9 @@ describe('formatLocation', () => {
   });
 
   it('ignores whitespace-only fields', () => {
-    expect(formatLocation({ city: '  ', state: 'Bavaria', country: ' Germany ' })).toBe('Bavaria, Germany');
+    expect(formatLocation({ city: '  ', state: 'Bavaria', country: ' Germany ' })).toBe(
+      'Bavaria, Germany'
+    );
   });
 
   it('returns an empty string for empty, null or undefined input', () => {

@@ -29,3 +29,24 @@ export function decideFromPixels({ existingPixelHash, pixelHash }) {
   const pixelsChanged = existingPixelHash != null && pixelHash !== existingPixelHash;
   return pixelsChanged ? 'render' : 'refresh';
 }
+
+// Human phrase for why a 'render' decision was reached, shown in the
+// --check-for-updates report. Precedence mirrors decideFromSource's render cases:
+// --rebuild-all forces every photo, a photo with no existing entry is new, and the
+// only remaining render case is an existing entry whose renditions are gone.
+export function renderReason({ rebuildAll, hasExisting }) {
+  if (rebuildAll) return 'rebuild-all';
+  if (!hasExisting) return 'new photo';
+  return 'renditions missing';
+}
+
+// Describe what a build would do to a photo, for the read-only --check-for-updates
+// report. A re-render is an "image" update (new photo, missing renditions, or a
+// pixel edit); a metadata-only refresh is a "metadata" update. A reused photo is
+// unchanged, so it has no update to report (returns null). `reason` is a short
+// human phrase carried through from the planner for context.
+export function describeUpdate({ action, reason }) {
+  if (action === 'render') return { kind: 'image', reason };
+  if (action === 'refresh') return { kind: 'metadata', reason };
+  return null;
+}

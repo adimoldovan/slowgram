@@ -32,6 +32,7 @@ node bin/build-feed.js              # pull, build new photos, prompt, sync
 node bin/build-feed.js --skip-sync  # build into .s3-mirror only (no upload)
 node bin/build-feed.js --sync-only  # upload existing .s3-mirror (no rebuild)
 node bin/build-feed.js --rebuild-all  # reprocess every photo
+node bin/build-feed.js --check-for-updates  # report what would rebuild, then exit
 node bin/build-feed.js --help
 ```
 
@@ -49,6 +50,10 @@ Notes:
   delete). The script refuses to sync an empty `.s3-mirror` as a safeguard.
 - **Only new photos are processed** by default; pass `--rebuild-all` after
   changing sizes or WebP quality.
+- **`--check-for-updates`** is read-only: it pulls the mirror, then reports which
+  photos would be rebuilt (an **image** update for a new photo or pixel edit, a
+  **metadata** update for a metadata-only edit) and which would be pruned — then
+  exits without building or syncing.
 - **Publication dates** live in `feed.json` (`published` per photo), so newly
   added photos sort to the top of a reader. On the first run against a feed
   without that field, dates are seeded from each photo's date taken.

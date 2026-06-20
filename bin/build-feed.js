@@ -22,7 +22,7 @@ import {
 import { createClient, pullBucket, syncToS3 } from './s3.js';
 import { renderIntoDir, entryAfterRender } from './feed-render.js';
 import { extractMeta } from './feed-meta.js';
-import { decideFromSource, decideFromPixels } from './feed-plan.js';
+import { decideFromSource, decideFromPixels, describeUpdate, renderReason } from './feed-plan.js';
 import { pruneMirror } from './feed-prune.js';
 
 const mirrorDir = fileURLToPath(new URL('../.s3-mirror', import.meta.url));
@@ -57,6 +57,7 @@ function parseArgs() {
     rebuildAll: false,
     syncOnly: false,
     skipSync: false,
+    checkForUpdates: false,
     help: false,
   };
 
@@ -76,6 +77,9 @@ function parseArgs() {
         break;
       case '--skip-sync':
         flags.skipSync = true;
+        break;
+      case '--check-for-updates':
+        flags.checkForUpdates = true;
         break;
       case '--help':
       case '-h':
@@ -105,6 +109,8 @@ Options:
   --skip-resize     Skip resizing (when reprocessing)
   --skip-sync       Build into .s3-mirror but do NOT upload to S3
   --sync-only       Skip building; only sync existing .s3-mirror to S3
+  --check-for-updates  Report which photos need rebuilding (image vs metadata)
+                       and which would be pruned, then exit — no build, no sync
   --help, -h        Show this help message
 
 Environment Variables:
@@ -288,6 +294,58 @@ async function extractColors(filePath) {
   }
 }
 
+// Classify one source photo against the existing feed entry without rendering it.
+// Returns the action a build would take — 'reuse' (byte-identical), 'refresh'
+// (metadata-only edit) or 'render' (new, missing renditions, --rebuild-all, or a
+// pixel edit) — a short human reason, and the content hashes computed along the
+// way so the build loop can reuse them instead of hashing the source twice. The
+// pixel hash is only computed when the cheap source-hash check is inconclusive,
+// the same lazy path the build uses. Pure decisions live in feed-plan.js; this
+// wrapper just supplies the I/O (hashing + the rendition-existence check).
+//
+// A source/pixel/EXIF read failure is caught here and reported as a 'render'
+// ('check failed'): both callers then re-process the photo, where processImage's
+// own per-photo error isolation kicks in (keeping existing renditions or skipping
+// a brand-new file). One unreadable source file therefore never aborts the whole
+// build or the check — the same isolation the rest of the pipeline already uses.
+async function planPhoto({ file, photosDir, existing, rebuildAll }) {
+  try {
+    const filePath = `${photosDir}/${file}`;
+    const id = path.parse(file).name;
+    const renditionExists = Boolean(
+      existing?.src?.src && fs.existsSync(`${mirrorDir}/${id}/${existing.src.src}`)
+    );
+    const sourceHash = hashFile(filePath);
+
+    const stage1 = decideFromSource({
+      rebuildAll,
+      hasExisting: Boolean(existing),
+      renditionExists,
+      sourceMatches: existing?.sourceHash === sourceHash,
+    });
+
+    if (stage1 === 'reuse') return { action: 'reuse', reason: 'unchanged', sourceHash };
+    if (stage1 === 'render') {
+      return {
+        action: 'render',
+        reason: renderReason({ rebuildAll, hasExisting: Boolean(existing) }),
+        sourceHash,
+      };
+    }
+
+    // inspect-pixels: the source changed but renditions still exist — hash the
+    // pixels to separate a metadata-only edit (refresh) from a pixel edit (render).
+    const pixelHash = await hashPixels(filePath);
+    if (decideFromPixels({ existingPixelHash: existing.pixelHash, pixelHash }) === 'render') {
+      return { action: 'render', reason: 'pixels changed', sourceHash, pixelHash };
+    }
+    return { action: 'refresh', reason: 'metadata only', sourceHash, pixelHash };
+  } catch (error) {
+    console.error(`\n❌ Error checking ${file}:`, error.message);
+    return { action: 'render', reason: 'check failed' };
+  }
+}
+
 async function processImage(file, index, photosDir, total, flags, hashes = {}) {
   const progress = `${Math.round((index / total) * 100)}% ${file}`;
   const image = {};
@@ -342,7 +400,9 @@ async function processImage(file, index, photosDir, total, flags, hashes = {}) {
             let finalFileName = targetFileName;
 
             if (!flags.skipResize) {
-              process.stdout.write(`  ➤ ${progress}: resizing to ${targetWidth}w                \r`);
+              process.stdout.write(
+                `  ➤ ${progress}: resizing to ${targetWidth}w                \r`
+              );
               await sharp(filePath)
                 .resize(targetWidth, null, { withoutEnlargement: true })
                 .toFile(targetFilePath);
@@ -452,6 +512,53 @@ function generateRss(images, dir) {
   console.log(`✅ rss.xml written (${limited.length}/${items.length} items).`);
 }
 
+// Read-only report for --check-for-updates: classify every source photo with
+// planPhoto (no rendering) and list the ones a build would touch, with their
+// update type (image vs metadata), plus the photos that would be pruned because
+// their source is gone. Mirrors the build's decision path so the report can't
+// drift from what an actual build would do.
+async function reportUpdates(imageFiles, photosDir, existingMap, keepIds) {
+  console.log('➤ Checking for updates...');
+  const updates = [];
+  for (const file of imageFiles) {
+    const id = path.parse(file).name;
+    process.stdout.write(`  ➤ ${file}: checking for changes        \r`);
+    const plan = await planPhoto({
+      file,
+      photosDir,
+      existing: existingMap.get(id),
+      rebuildAll: false,
+    });
+    const update = describeUpdate(plan);
+    if (update) updates.push({ id, ...update });
+  }
+  process.stdout.write(`${''.padStart(200, ' ')}\r`);
+
+  // Source photos no longer present would be pruned from the mirror (and deleted
+  // from S3 on the next sync). pruneMirror's dry run lists them without touching
+  // anything.
+  const removals = pruneMirror(mirrorDir, keepIds, { dryRun: true });
+
+  for (const { id, kind, reason } of updates) {
+    console.log(`  • ${id} — ${kind} (${reason})`);
+  }
+  for (const id of removals) {
+    console.log(`  • ${id} — removed (source gone)`);
+  }
+
+  const imageCount = updates.filter((u) => u.kind === 'image').length;
+  const metadataCount = updates.filter((u) => u.kind === 'metadata').length;
+  const pending = updates.length + removals.length;
+  if (pending === 0) {
+    console.log(`✅ Up to date — nothing to build (${imageFiles.length} photos).`);
+  } else {
+    console.log(
+      `✅ ${pending} update(s): ${imageCount} image, ${metadataCount} metadata, ` +
+        `${removals.length} removal(s). Run without --check-for-updates to build.`
+    );
+  }
+}
+
 async function run() {
   console.log();
   const flags = parseArgs();
@@ -517,6 +624,14 @@ async function run() {
   }
   console.log(`➤ Found ${imageFiles.length} image files`);
 
+  // --check-for-updates: read-only report of what a build would do, then stop.
+  //    Runs after the mirror pull so it reflects the published state; never
+  //    renders, writes the feed, or syncs.
+  if (flags.checkForUpdates) {
+    await reportUpdates(imageFiles, photosDir, existingMap, new Set(byId.keys()));
+    return;
+  }
+
   const activeFlags = [];
   if (flags.rebuildAll) activeFlags.push('rebuild-all');
   if (flags.skipResize) activeFlags.push('skip-resize');
@@ -535,46 +650,31 @@ async function run() {
   let keptExisting = 0;
   for (const [index, file] of imageFiles.entries()) {
     const id = path.parse(file).name;
-    const filePath = `${photosDir}/${file}`;
     const existing = existingMap.get(id);
-    const renditionExists =
-      existing?.src?.src && fs.existsSync(`${mirrorDir}/${id}/${existing.src.src}`);
-    const sourceHash = hashFile(filePath);
-    // Computed lazily below if we need to compare pixels; reused by processImage
-    // on the re-render path so the source is never decoded twice in one run.
-    let pixelHash;
 
-    // Stage 1: decide from the cheap source-hash check alone (see feed-plan.js).
-    const action = decideFromSource({
-      rebuildAll: flags.rebuildAll,
-      hasExisting: Boolean(existing),
-      renditionExists: Boolean(renditionExists),
-      sourceMatches: existing?.sourceHash === sourceHash,
-    });
+    // Decide what to do from the source hash, then the pixel hash if needed
+    // (see planPhoto / feed-plan.js). planPhoto isolates read failures into a
+    // 'render' plan, so a bad file falls through to a re-render rather than
+    // aborting the build. The hashes it computed are reused below so the source
+    // is never decoded twice in one run.
+    process.stdout.write(`  ➤ ${file}: checking for changes        \r`);
+    const plan = await planPhoto({ file, photosDir, existing, rebuildAll: flags.rebuildAll });
 
     let entry = null;
-    if (action === 'reuse') {
+    if (plan.action === 'reuse') {
       // Fast path: the file is byte-identical to last time -> nothing to do.
       entry = existing;
       reused++;
-    } else if (action === 'inspect-pixels') {
-      // Source changed but renditions still exist: hash the pixels and let
-      // decideFromPixels separate a metadata-only edit (refresh feed fields, keep
-      // renditions) from a pixel edit (re-render). A legacy entry with no stored
-      // pixelHash refreshes too, which backfills both hashes for next time.
-      process.stdout.write(`  ➤ ${file}: checking for changes        \r`);
+    } else if (plan.action === 'refresh') {
+      // Metadata-only edit: keep the existing renditions, just refresh the feed
+      // fields. A legacy entry with no stored pixelHash refreshes too, which
+      // backfills both hashes for next time. A bad EXIF read leaves entry null
+      // so the photo falls through to a full re-render below.
       try {
-        pixelHash = await hashPixels(filePath);
-        if (decideFromPixels({ existingPixelHash: existing.pixelHash, pixelHash }) === 'refresh') {
-          const meta = extractMeta(await getExifData(filePath));
-          entry = { ...existing, ...meta, sourceHash, pixelHash };
-          refreshed++;
-        }
+        const meta = extractMeta(await getExifData(`${photosDir}/${file}`));
+        entry = { ...existing, ...meta, sourceHash: plan.sourceHash, pixelHash: plan.pixelHash };
+        refreshed++;
       } catch (error) {
-        // Mirror processImage's error isolation: a bad pixel/EXIF read here must
-        // not abort the whole incremental build. Leave entry null so the photo
-        // falls through to a full re-render below (which will skip it if it also
-        // fails), exactly as a brand-new photo would.
         console.error(`\n❌ Error refreshing ${file}:`, error.message);
       }
     }
@@ -582,8 +682,8 @@ async function run() {
     // New photo, missing renditions, --rebuild-all, or pixels changed -> render.
     if (!entry) {
       const rendered = await processImage(file, index, photosDir, imageFiles.length, flags, {
-        sourceHash,
-        pixelHash,
+        sourceHash: plan.sourceHash,
+        pixelHash: plan.pixelHash,
       });
       // A failed render falls back to the existing entry (its renditions survive,
       // see renderIntoDir) so a transient failure never drops the photo or its
