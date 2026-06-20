@@ -1,7 +1,13 @@
+// @vitest-environment node
+// This suite exercises the Node build pipeline (bin/feed-build.js + helpers),
+// which resolves paths via import.meta.url — that needs the real file: URL the
+// node environment provides, not jsdom's. No DOM is used here.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import crypto from 'crypto';
+import { planPhoto, reportUpdates } from '../bin/feed-build.js';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
 import { extractMeta } from '../bin/feed-meta.js';
 import {
@@ -12,6 +18,11 @@ import {
 } from '../bin/feed-plan.js';
 import { pruneMirror } from '../bin/feed-prune.js';
 import { formatLocation } from '../bin/rss.js';
+
+// SHA-256 of a file's bytes — mirrors hashFile() in feed-build.js so a test can
+// set up an "existing" entry whose sourceHash matches a source file on disk.
+const sha256OfFile = (filePath) =>
+  crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
 
 describe('extractMeta', () => {
   const base = { DateTimeOriginal: '2024:03:15 09:30:00' };
@@ -303,5 +314,151 @@ describe('renderIntoDir', () => {
     const tmpPath = path.join(root, '.tmp-photo');
     const result = await renderIntoDir(setPath, tmpPath, async () => 'done');
     expect(result).toBe('done');
+  });
+});
+
+// planPhoto and reportUpdates are the I/O wrappers around the pure feed-plan
+// rules: they supply the hashing and the rendition-existence check. The pure
+// decisions are covered above; these exercise the wrappers themselves against a
+// real temp source + mirror — most importantly the safety invariant that an
+// unreadable source file is classified 'render' ('check failed') and never pruned.
+describe('planPhoto', () => {
+  let root;
+  let photosDir;
+  let mirrorDir;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'slowgram-'));
+    photosDir = path.join(root, 'source');
+    mirrorDir = path.join(root, 'mirror');
+    fs.mkdirSync(photosDir);
+    fs.mkdirSync(mirrorDir);
+    fs.writeFileSync(path.join(photosDir, 'photo.jpg'), 'pixels');
+  });
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('renders a brand-new photo and returns the source hash', async () => {
+    const plan = await planPhoto({
+      file: 'photo.jpg',
+      photosDir,
+      existing: undefined,
+      rebuildAll: false,
+      mirrorDir,
+    });
+    expect(plan).toEqual({
+      action: 'render',
+      reason: 'new photo',
+      sourceHash: sha256OfFile(path.join(photosDir, 'photo.jpg')),
+    });
+  });
+
+  it('reuses a byte-identical photo whose rendition still exists in the mirror', async () => {
+    const sourceHash = sha256OfFile(path.join(photosDir, 'photo.jpg'));
+    fs.mkdirSync(path.join(mirrorDir, 'photo'));
+    fs.writeFileSync(path.join(mirrorDir, 'photo', 'photo-320w.webp'), 'rendition');
+
+    const plan = await planPhoto({
+      file: 'photo.jpg',
+      photosDir,
+      existing: { sourceHash, src: { src: 'photo-320w.webp' } },
+      rebuildAll: false,
+      mirrorDir,
+    });
+    expect(plan).toEqual({ action: 'reuse', reason: 'unchanged', sourceHash });
+  });
+
+  it('renders when the source matches but the rendition is gone from the mirror', async () => {
+    const sourceHash = sha256OfFile(path.join(photosDir, 'photo.jpg'));
+    // No file written under mirror/photo, so the rendition-existence check fails.
+    const plan = await planPhoto({
+      file: 'photo.jpg',
+      photosDir,
+      existing: { sourceHash, src: { src: 'photo-320w.webp' } },
+      rebuildAll: false,
+      mirrorDir,
+    });
+    expect(plan).toEqual({ action: 'render', reason: 'renditions missing', sourceHash });
+  });
+
+  it("classifies an unreadable source as a 'render' with reason 'check failed' (safety invariant)", async () => {
+    // A path that cannot be read as a file (here a directory that looks like an
+    // image) drives planPhoto into its catch branch, exactly as a permission
+    // error or a corrupt read would. The build must then re-render it, never
+    // silently drop it.
+    fs.mkdirSync(path.join(photosDir, 'broken.jpg'));
+    const plan = await planPhoto({
+      file: 'broken.jpg',
+      photosDir,
+      existing: undefined,
+      rebuildAll: false,
+      mirrorDir,
+    });
+    expect(plan).toEqual({ action: 'render', reason: 'check failed' });
+    expect(plan.sourceHash).toBeUndefined();
+  });
+});
+
+describe('reportUpdates', () => {
+  let root;
+  let photosDir;
+  let mirrorDir;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'slowgram-'));
+    photosDir = path.join(root, 'source');
+    mirrorDir = path.join(root, 'mirror');
+    fs.mkdirSync(photosDir);
+    fs.mkdirSync(mirrorDir);
+  });
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it('reports an unreadable but present source as an image update and never prunes it (safety invariant)', async () => {
+    // 'broken.jpg' is present in the source set (so it is in keepIds) but cannot
+    // be read — it plans as 'check failed'. 'gone' has renditions in the mirror
+    // but no source, so it is the only thing eligible for pruning.
+    fs.mkdirSync(path.join(photosDir, 'broken.jpg'));
+    fs.mkdirSync(path.join(mirrorDir, 'broken'));
+    fs.writeFileSync(path.join(mirrorDir, 'broken', 'broken-320w.webp'), 'rendition');
+    fs.mkdirSync(path.join(mirrorDir, 'gone'));
+    fs.writeFileSync(path.join(mirrorDir, 'gone', 'gone-320w.webp'), 'rendition');
+
+    const { updates, removals } = await reportUpdates(
+      ['broken.jpg'],
+      photosDir,
+      new Map(),
+      new Set(['broken']),
+      mirrorDir
+    );
+
+    expect(updates).toEqual([{ id: 'broken', kind: 'image', reason: 'check failed' }]);
+    // The unreadable photo is rebuilt, not pruned: it is absent from removals and
+    // its mirror dir is left intact.
+    expect(removals).toEqual(['gone']);
+    expect(fs.existsSync(path.join(mirrorDir, 'broken'))).toBe(true);
+    // dryRun: even the genuinely-gone photo's renditions are only reported.
+    expect(fs.existsSync(path.join(mirrorDir, 'gone'))).toBe(true);
+  });
+
+  it('reports nothing to build when every source reuses and no source is gone', async () => {
+    fs.writeFileSync(path.join(photosDir, 'photo.jpg'), 'pixels');
+    const sourceHash = sha256OfFile(path.join(photosDir, 'photo.jpg'));
+    fs.mkdirSync(path.join(mirrorDir, 'photo'));
+    fs.writeFileSync(path.join(mirrorDir, 'photo', 'photo-320w.webp'), 'rendition');
+
+    const existingMap = new Map([['photo', { sourceHash, src: { src: 'photo-320w.webp' } }]]);
+    const { updates, removals } = await reportUpdates(
+      ['photo.jpg'],
+      photosDir,
+      existingMap,
+      new Set(['photo']),
+      mirrorDir
+    );
+
+    expect(updates).toEqual([]);
+    expect(removals).toEqual([]);
   });
 });
