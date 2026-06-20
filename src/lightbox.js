@@ -1,4 +1,9 @@
 import { getVisiblePhotoIndices } from './photos';
+// photoSlug lives in the shared photo-identity module so the RSS feed's
+// /photo/{slug} links (bin/rss.mjs) stay in lockstep with this routing.
+import { photoSlug } from './photo-id.mjs';
+
+export { photoSlug };
 
 // Animation timing constants
 const TRANSITION_FAST = '0.25s';
@@ -16,12 +21,6 @@ let hasPushedEntry = false;
 
 export function setNavigating(value) {
   navigating = value;
-}
-
-export function photoSlug(photo) {
-  const segments = photo.src.path.split('/').filter(Boolean);
-  const last = segments.pop() || '';
-  return last.replace(/-+$/, '');
 }
 
 export function getNextIndex(currentIndex, direction, visibleIndices) {

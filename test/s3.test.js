@@ -27,22 +27,32 @@ describe('planSync', () => {
     expect(toDelete).toEqual(['gone/old-320w.webp']);
   });
 
-  it('always uploads listed keys even when size matches', () => {
-    const local = [f('feed.json', 100), f('rss.xml', 100), f('a.webp', 100)];
-    const remote = [
-      { key: 'feed.json', size: 100 },
-      { key: 'rss.xml', size: 100 },
-      { key: 'a.webp', size: 100 },
-    ];
-    const { toUpload } = planSync(local, remote, ['feed.json', 'rss.xml']);
-    expect(toUpload.map((u) => u.key).sort()).toEqual(['feed.json', 'rss.xml']);
+  it('skips a content-hashed file whose md5 matches the remote ETag', () => {
+    const local = [{ ...f('feed.json', 100), md5: 'abc123' }];
+    const remote = [{ key: 'feed.json', size: 100, eTag: '"abc123"' }];
+    const { toUpload } = planSync(local, remote);
+    expect(toUpload).toEqual([]);
   });
 
-  it('does not fabricate uploads for alwaysUpload keys absent locally', () => {
-    const local = [f('a.webp', 100)];
-    const remote = [{ key: 'a.webp', size: 100 }];
-    const { toUpload } = planSync(local, remote, ['feed.json', 'rss.xml']);
-    expect(toUpload).toEqual([]);
+  it('uploads a content-hashed file whose content changed despite equal size', () => {
+    const local = [{ ...f('rss.xml', 100), md5: 'newhash' }];
+    const remote = [{ key: 'rss.xml', size: 100, eTag: '"oldhash"' }];
+    const { toUpload } = planSync(local, remote);
+    expect(toUpload.map((u) => u.key)).toEqual(['rss.xml']);
+  });
+
+  it('uploads a content-hashed file that is missing remotely', () => {
+    const local = [{ ...f('feed.json', 100), md5: 'abc123' }];
+    const remote = [];
+    const { toUpload } = planSync(local, remote);
+    expect(toUpload.map((u) => u.key)).toEqual(['feed.json']);
+  });
+
+  it('re-uploads when the remote ETag is multipart (cannot prove equality)', () => {
+    const local = [{ ...f('feed.json', 100), md5: 'abc123' }];
+    const remote = [{ key: 'feed.json', size: 100, eTag: '"abc123-2"' }];
+    const { toUpload } = planSync(local, remote);
+    expect(toUpload.map((u) => u.key)).toEqual(['feed.json']);
   });
 });
 

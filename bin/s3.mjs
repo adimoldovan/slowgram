@@ -2,6 +2,7 @@
 // are unit tested; the SDK I/O lives further down (added in a later task).
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import {
   S3Client,
   ListObjectsV2Command,
@@ -33,17 +34,27 @@ export function cacheControlFor(key) {
   return undefined;
 }
 
-// Compare local mirror vs remote bucket by size. alwaysUpload forces re-upload
-// of keys whose size happens to match (used for feed.json + rss.xml).
-export function planSync(local, remote, alwaysUpload = []) {
+// Normalise an S3 ETag for comparison: strip the surrounding quotes and
+// lowercase. For a single-part PUT the ETag is the content MD5 hex; a multipart
+// ETag carries a "-N" suffix that simply won't match a plain md5 (so we
+// conservatively re-upload — never a wrong skip).
+export function normalizeETag(eTag) {
+  return typeof eTag === 'string' ? eTag.replace(/"/g, '').toLowerCase() : eTag;
+}
+
+// Compare local mirror vs remote bucket. Files carrying an `md5` (the
+// non-content-addressed feed files) are compared by content hash against the
+// remote ETag, so an unchanged feed.json/rss.xml is skipped. Everything else is
+// compared by size — photos are content-addressed, so a size match means equal.
+export function planSync(local, remote) {
   const remoteByKey = new Map(remote.map((o) => [o.key, o]));
   const localByKey = new Map(local.map((f) => [f.key, f]));
-  const force = new Set(alwaysUpload);
 
   const toUpload = local.filter((f) => {
-    if (force.has(f.key)) return true;
     const r = remoteByKey.get(f.key);
-    return !r || r.size !== f.size;
+    if (!r) return true;
+    if (f.md5 != null) return normalizeETag(r.eTag) !== f.md5;
+    return r.size !== f.size;
   });
   const toDelete = remote.filter((o) => !localByKey.has(o.key)).map((o) => o.key);
   return { toUpload, toDelete };
@@ -82,6 +93,14 @@ export function walkFiles(dir) {
   return out;
 }
 
+// Content keys that aren't content-addressed (fixed names, mutable content), so
+// the sync compares them by MD5 against the remote ETag instead of by size.
+const CONTENT_COMPARE_KEYS = new Set(['feed.json', 'rss.xml']);
+
+function md5File(absPath) {
+  return crypto.createHash('md5').update(fs.readFileSync(absPath)).digest('hex');
+}
+
 export function createClient(config) {
   const region = config?.aws?.region || process.env.AWS_REGION;
   return new S3Client(region ? { region } : {});
@@ -93,7 +112,7 @@ export async function listAllObjects(client, bucket) {
   do {
     const res = await client.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken }));
     for (const o of res.Contents || []) {
-      objects.push({ key: o.Key, size: o.Size });
+      objects.push({ key: o.Key, size: o.Size, eTag: o.ETag });
     }
     ContinuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
   } while (ContinuationToken);
@@ -169,10 +188,20 @@ export async function syncToS3(client, bucket, mirrorDir, { confirm }) {
     throw new Error('Refusing to sync: .s3-mirror is empty (this would delete the whole bucket).');
   }
 
+  // Hash the mutable feed files so planSync can compare them by content.
+  for (const f of local) {
+    if (CONTENT_COMPARE_KEYS.has(f.key)) f.md5 = md5File(f.absPath);
+  }
+
   const remote = await listAllObjects(client, bucket);
-  const { toUpload, toDelete } = planSync(local, remote, ['feed.json', 'rss.xml']);
+  const { toUpload, toDelete } = planSync(local, remote);
 
   console.log(`➤ Sync plan: ${toUpload.length} to upload, ${toDelete.length} to delete on S3.`);
+  const UPLOAD_PREVIEW = 20;
+  toUpload.slice(0, UPLOAD_PREVIEW).forEach((f) => console.log(`   + upload ${f.key}`));
+  if (toUpload.length > UPLOAD_PREVIEW) {
+    console.log(`   … and ${toUpload.length - UPLOAD_PREVIEW} more`);
+  }
   toDelete.forEach((k) => console.log(`   - delete ${k}`));
 
   if (toUpload.length === 0 && toDelete.length === 0) {

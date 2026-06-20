@@ -2,8 +2,29 @@
 // Kept side-effect free so they can be unit tested; build-feed.mjs supplies
 // the filesystem-derived bits (enclosure byte length) and writes the result.
 
+// photoId/photoSlug come from the frontend's shared module so feed <link>s
+// resolve to the same /photo/{slug} the app's routing produces. Re-exported
+// here for build-feed.mjs and the tests that already import them from rss.mjs.
+import { photoId, photoSlug } from '../src/photo-id.mjs';
+
+export { photoId, photoSlug };
+
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const FULL_MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
 
 const MIME_BY_EXT = {
   '.webp': 'image/webp',
@@ -25,6 +46,16 @@ export function toRfc822(ms) {
   );
 }
 
+// Format an EXIF DateTimeOriginal ("YYYY:MM:DD HH:MM:SS") as "Month YYYY",
+// e.g. "June 2026". Returns '' for missing/unparseable input so callers can
+// drop it from a joined meta line.
+export function toMonthYear(exifDate) {
+  const m = /^(\d{4}):(\d{2}):/.exec(String(exifDate ?? ''));
+  if (!m) return '';
+  const month = FULL_MONTHS[parseInt(m[2], 10) - 1];
+  return month ? `${month} ${m[1]}` : '';
+}
+
 export function escapeXml(value) {
   return String(value).replace(/[<>&'"]/g, (c) => {
     switch (c) {
@@ -42,9 +73,12 @@ export function escapeXml(value) {
   });
 }
 
-// Stable per-photo id derived from its CDN folder (config.feed.photos + "/" + name).
-export function photoId(image) {
-  return image.src.path.split('/').pop();
+// Canonical site permalink used as an item's <link>: the /photo/{slug} deep link
+// when a site URL is configured, else the supplied fallback (e.g. the raw image
+// URL) so the feed still carries a usable link without a site.
+export function photoPermalink(image, siteUrl, fallback) {
+  if (!siteUrl) return fallback;
+  return `${siteUrl.replace(/\/+$/, '')}/photo/${photoSlug(image)}`;
 }
 
 // Resolve "first seen in the feed" timestamps used as RSS pubDates.
@@ -73,14 +107,19 @@ export function mimeForExt(ext) {
   return MIME_BY_EXT[String(ext).toLowerCase()] || 'application/octet-stream';
 }
 
-// Build the HTML body shown inside an RSS reader for one photo.
-export function buildItemDescription({ imgSrc, srcset, alt, meta }) {
+// Build the HTML body shown inside an RSS reader for one photo. metaLines is an
+// ordered list of caption lines (e.g. title, "location · date", camera); each
+// non-empty line is rendered on its own row, separated by <br />.
+export function buildItemDescription({ imgSrc, srcset, alt, metaLines = [] }) {
   const srcsetAttr = srcset ? ` srcset="${escapeXml(srcset)}"` : '';
   const sizesAttr = srcset ? ' sizes="100vw"' : '';
-  const metaLine = meta ? `<p>${escapeXml(meta)}</p>` : '';
+  const lines = (Array.isArray(metaLines) ? metaLines : [metaLines]).filter(Boolean);
+  const metaBlock = lines.length
+    ? `<p>${lines.map((line) => escapeXml(line)).join('<br />')}</p>`
+    : '';
   return (
     `<p><img src="${escapeXml(imgSrc)}"${srcsetAttr}${sizesAttr} ` +
-    `alt="${escapeXml(alt)}" style="max-width:100%;height:auto" /></p>${metaLine}`
+    `alt="${escapeXml(alt)}" style="max-width:100%;height:auto" /></p>${metaBlock}`
   );
 }
 

@@ -1,13 +1,17 @@
 import { describe, it, expect } from 'vitest';
 import {
   toRfc822,
+  toMonthYear,
   escapeXml,
   mimeForExt,
   buildItemDescription,
   buildRss,
   photoId,
+  photoSlug,
+  photoPermalink,
   resolvePublishedDates,
 } from '../bin/rss.mjs';
+import { photoSlug as frontendPhotoSlug } from '../src/lightbox';
 
 const photo = (name, takenMs) => ({
   src: { path: `https://cdn/${name}`, src: `${name}-1920w.webp`, set: [] },
@@ -24,6 +28,19 @@ describe('toRfc822', () => {
   it('zero-pads day, hours, minutes and seconds', () => {
     const ms = Date.UTC(2026, 0, 5, 3, 7, 8);
     expect(toRfc822(ms)).toBe('Mon, 05 Jan 2026 03:07:08 GMT');
+  });
+});
+
+describe('toMonthYear', () => {
+  it('formats an EXIF DateTimeOriginal as "Month YYYY"', () => {
+    expect(toMonthYear('2026:06:20 14:05:09')).toBe('June 2026');
+    expect(toMonthYear('2020:01:01 00:00:00')).toBe('January 2020');
+  });
+
+  it('returns an empty string for missing or unparseable input', () => {
+    expect(toMonthYear(undefined)).toBe('');
+    expect(toMonthYear('')).toBe('');
+    expect(toMonthYear('not a date')).toBe('');
   });
 });
 
@@ -48,17 +65,29 @@ describe('mimeForExt', () => {
 });
 
 describe('buildItemDescription', () => {
-  it('includes the image, srcset and metadata line', () => {
+  it('includes the image, srcset and metadata lines separated by <br />', () => {
     const html = buildItemDescription({
       imgSrc: 'https://cdn/x/x-1920w.webp',
       srcset: 'https://cdn/x/x-320w.webp 320w, https://cdn/x/x-1920w.webp 1920w',
       alt: 'Sunset',
-      meta: 'Fujifilm X100V · Lisbon, Portugal · 2026:06:20 14:05:09',
+      metaLines: ['Sunset', 'Lisbon, Portugal · June 2026', 'Fujifilm X100V'],
     });
     expect(html).toContain('src="https://cdn/x/x-1920w.webp"');
     expect(html).toContain('srcset="https://cdn/x/x-320w.webp 320w');
     expect(html).toContain('alt="Sunset"');
-    expect(html).toContain('<p>Fujifilm X100V · Lisbon, Portugal · 2026:06:20 14:05:09</p>');
+    expect(html).toContain(
+      '<p>Sunset<br />Lisbon, Portugal · June 2026<br />Fujifilm X100V</p>'
+    );
+  });
+
+  it('drops empty meta lines so blank fields leave no stray <br />', () => {
+    const html = buildItemDescription({
+      imgSrc: 'https://cdn/x.webp',
+      alt: 'x',
+      metaLines: ['', 'Lisbon · June 2026', ''],
+    });
+    expect(html).toContain('<p>Lisbon · June 2026</p>');
+    expect(html).not.toContain('<br />');
   });
 
   it('omits srcset and meta when not provided', () => {
@@ -71,6 +100,43 @@ describe('buildItemDescription', () => {
 describe('photoId', () => {
   it('derives the id from the CDN folder', () => {
     expect(photoId(photo('sunset', 1))).toBe('sunset');
+  });
+});
+
+describe('photoSlug', () => {
+  it('strips trailing dashes so it matches the frontend deep-link slug', () => {
+    expect(photoSlug(photo('20260506-141559-'))).toBe('20260506-141559');
+  });
+
+  it('leaves an id without trailing dashes unchanged', () => {
+    expect(photoSlug(photo('sunset'))).toBe('sunset');
+  });
+});
+
+describe('shared photo identity', () => {
+  it('the feed and the frontend resolve a slug through the exact same function', () => {
+    // Identity, not just equal behavior: the RSS <link> must follow the
+    // frontend's deep-link rule even if that rule later changes. Same function
+    // object => they can never silently drift apart.
+    expect(photoSlug).toBe(frontendPhotoSlug);
+  });
+});
+
+describe('photoPermalink', () => {
+  it('builds a /photo/{slug} deep link from the configured site url', () => {
+    expect(
+      photoPermalink(photo('20260506-141559-'), 'https://slowgram.amoldovan.ro', 'fallback')
+    ).toBe('https://slowgram.amoldovan.ro/photo/20260506-141559');
+  });
+
+  it('does not double a trailing slash on the site url', () => {
+    expect(photoPermalink(photo('sunset'), 'https://x/', 'fb')).toBe('https://x/photo/sunset');
+  });
+
+  it('falls back to the given url when no site url is configured', () => {
+    expect(photoPermalink(photo('sunset'), '', 'https://cdn/sunset/sunset-1920w.webp')).toBe(
+      'https://cdn/sunset/sunset-1920w.webp'
+    );
   });
 });
 

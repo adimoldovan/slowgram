@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import readline from 'readline';
 import { fileURLToPath } from 'url';
 import exiftool from 'node-exiftool';
@@ -13,9 +14,13 @@ import {
   buildItemDescription,
   mimeForExt,
   photoId,
+  photoPermalink,
   resolvePublishedDates,
+  toMonthYear,
 } from './rss.mjs';
 import { createClient, pullBucket, syncToS3 } from './s3.mjs';
+import { renderIntoDir, entryAfterRender } from './feed-render.mjs';
+import { extractMeta } from './feed-meta.mjs';
 
 const mirrorDir = fileURLToPath(new URL('../.s3-mirror', import.meta.url));
 
@@ -92,7 +97,7 @@ Pulls the S3 bucket into .s3-mirror, rebuilds feed.json + rss.xml (preserving
 publication dates), then syncs .s3-mirror back to S3 after a confirmation prompt.
 
 Options:
-  --rebuild-all     Reprocess every source photo (default: only new ones)
+  --rebuild-all     Reprocess every source photo (default: only new or edited ones)
   --skip-convert    Skip WebP conversion (when reprocessing)
   --skip-resize     Skip resizing (when reprocessing)
   --skip-sync       Build into .s3-mirror but do NOT upload to S3
@@ -132,12 +137,20 @@ async function getExifData(filePath) {
   return data.data[0];
 }
 
-function clearDir(dir) {
-  fs.rmSync(dir, {
-    recursive: true,
-    force: true,
-  });
-  fs.mkdirSync(dir, { recursive: true });
+// SHA-256 of the whole source file: a cheap "did anything at all change?" check.
+function hashFile(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+// SHA-256 of the decoded pixels. Invariant to metadata, so it moves only when
+// the image data itself does — this is what separates a metadata-only edit from
+// a pixel edit when the file hash has changed. .rotate() (no args) bakes in the
+// EXIF orientation, matching the renditions (sharp auto-orients on resize), so
+// an orientation-only edit counts as a pixel change and triggers a re-render
+// instead of leaving the displayed rotation stale until --rebuild-all.
+async function hashPixels(filePath) {
+  const buffer = await sharp(filePath).rotate().raw().toBuffer();
+  return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
 // Remove photo dirs in .s3-mirror that are no longer in the feed so the mirror
@@ -283,25 +296,22 @@ async function extractColors(filePath) {
   }
 }
 
-async function processImage(file, index, photosDir, total, flags) {
+async function processImage(file, index, photosDir, total, flags, hashes = {}) {
   const progress = `${Math.round((index / total) * 100)}% ${file}`;
   const image = {};
 
   try {
     process.stdout.write(`  ➤ ${progress}: getting EXIF data\r`);
     const filePath = `${photosDir}/${file}`;
+    // Content fingerprints used by incremental builds: the full-file hash flags
+    // any edit; the pixel hash lets a later run separate a metadata-only edit
+    // (reuse renditions) from a pixel edit (re-render). See the reuse loop in run().
+    // run() has already hashed the source to make that decision, so reuse those
+    // values when passed and never read/decode the file a second time here.
+    image.sourceHash = hashes.sourceHash ?? hashFile(filePath);
+    image.pixelHash = hashes.pixelHash ?? (await hashPixels(filePath));
     const data = await getExifData(filePath);
-
-    const dateParts = data.DateTimeOriginal.split(' ');
-    const datePart = dateParts[0].replace(/:/g, '-');
-    const [, timePart] = dateParts;
-    const timestamp = Date.parse(`${datePart}T${timePart}`);
-    image.dateTaken = { timestamp, original: data.DateTimeOriginal };
-
-    image.camera = `${data.Make} ${data.Model}`;
-    image.location = { city: data.City, state: data.State, country: data.Country };
-    image.title = data.ObjectName;
-    image.keywords = data.Keywords;
+    Object.assign(image, extractMeta(data));
 
     process.stdout.write(`  ➤ ${progress}: extracting colors\r`);
     image.colors = await extractColors(filePath);
@@ -313,56 +323,63 @@ async function processImage(file, index, photosDir, total, flags) {
     }
     image.src = { path: `${config.feed.photos}/${parsedPath.name}`, set: [] };
 
+    // Render into a temp dir and only swap it into place on success, so a failed
+    // conversion/resize leaves any renditions pulled from S3 untouched (see
+    // renderIntoDir). Without this, clearing the dir up front then failing would
+    // strand the photo with no renditions and the sync would delete it from S3.
+    const setPath = `${mirrorDir}/${parsedPath.name}`;
+    const tmpPath = `${mirrorDir}/.tmp-${parsedPath.name}`;
+
     if (flags.skipResize && flags.skipConvert) {
       process.stdout.write(`  ➤ ${progress}: copying original file                \r`);
-      const setPath = `${mirrorDir}/${parsedPath.name}`;
-      if (!fs.existsSync(setPath)) fs.mkdirSync(setPath, { recursive: true });
-      const originalFileName = `${parsedPath.name}${parsedPath.ext}`;
-      fs.copyFileSync(filePath, `${setPath}/${originalFileName}`);
-      image.src.set.push(`${originalFileName} ${originalWidth}w`);
-      image.src.src = originalFileName;
+      await renderIntoDir(setPath, tmpPath, async (outDir) => {
+        const originalFileName = `${parsedPath.name}${parsedPath.ext}`;
+        fs.copyFileSync(filePath, `${outDir}/${originalFileName}`);
+        image.src.set.push(`${originalFileName} ${originalWidth}w`);
+        image.src.src = originalFileName;
+      });
     } else {
-      const setPath = `${mirrorDir}/${parsedPath.name}`;
-      clearDir(setPath);
-      let lastSize = 0;
-      const validSizes = sizes.filter((targetWidth) => targetWidth <= originalWidth);
+      await renderIntoDir(setPath, tmpPath, async (outDir) => {
+        let lastSize = 0;
+        const validSizes = sizes.filter((targetWidth) => targetWidth <= originalWidth);
 
-      await Promise.all(
-        validSizes.map(async (targetWidth) => {
-          const targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
-          const targetFilePath = `${setPath}/${targetFileName}`;
-          let finalFileName = targetFileName;
+        await Promise.all(
+          validSizes.map(async (targetWidth) => {
+            const targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
+            const targetFilePath = `${outDir}/${targetFileName}`;
+            let finalFileName = targetFileName;
 
-          if (!flags.skipResize) {
-            process.stdout.write(`  ➤ ${progress}: resizing to ${targetWidth}w                \r`);
-            await sharp(filePath)
-              .resize(targetWidth, null, { withoutEnlargement: true })
-              .toFile(targetFilePath);
-          } else {
-            process.stdout.write(
-              `  ➤ ${progress}: copying original to ${targetWidth}w slot                \r`
-            );
-            fs.copyFileSync(filePath, targetFilePath);
-          }
+            if (!flags.skipResize) {
+              process.stdout.write(`  ➤ ${progress}: resizing to ${targetWidth}w                \r`);
+              await sharp(filePath)
+                .resize(targetWidth, null, { withoutEnlargement: true })
+                .toFile(targetFilePath);
+            } else {
+              process.stdout.write(
+                `  ➤ ${progress}: copying original to ${targetWidth}w slot                \r`
+              );
+              fs.copyFileSync(filePath, targetFilePath);
+            }
 
-          if (!flags.skipConvert) {
-            process.stdout.write(
-              `  ➤ ${progress}: Converting ${targetFileName} to .webp        \r`
-            );
-            await convertImageToWebp(setPath, targetFileName);
-            finalFileName = `${parsedPath.name}-${targetWidth}w.webp`;
-            fs.rmSync(targetFilePath);
-          }
+            if (!flags.skipConvert) {
+              process.stdout.write(
+                `  ➤ ${progress}: Converting ${targetFileName} to .webp        \r`
+              );
+              await convertImageToWebp(outDir, targetFileName);
+              finalFileName = `${parsedPath.name}-${targetWidth}w.webp`;
+              fs.rmSync(targetFilePath);
+            }
 
-          image.src.set.push(`${finalFileName} ${targetWidth}w`);
-          if (targetWidth > lastSize) {
-            lastSize = targetWidth;
-            image.src.src = finalFileName;
-          }
-        })
-      );
-      // Keep srcset deterministic regardless of Promise resolution order.
-      image.src.set.sort((a, b) => parseInt(a.split(' ')[1], 10) - parseInt(b.split(' ')[1], 10));
+            image.src.set.push(`${finalFileName} ${targetWidth}w`);
+            if (targetWidth > lastSize) {
+              lastSize = targetWidth;
+              image.src.src = finalFileName;
+            }
+          })
+        );
+        // Keep srcset deterministic regardless of Promise resolution order.
+        image.src.set.sort((a, b) => parseInt(a.split(' ')[1], 10) - parseInt(b.split(' ')[1], 10));
+      });
     }
 
     return image;
@@ -386,8 +403,15 @@ function generateRss(images, dir) {
       .join(', ');
 
     const loc = [image.location?.city, image.location?.country].filter(Boolean).join(', ');
-    const title = image.title || loc || image.dateTaken.original || 'Photo';
-    const meta = [image.camera, loc, image.dateTaken.original].filter(Boolean).join(' · ');
+    const title = image.title || loc || id || 'Photo';
+    // Caption rows shown under the photo: title, "location · date", camera.
+    // image.title (not the fallback) keeps the first row from duplicating the
+    // location/date row when a photo has no real title.
+    const metaLines = [
+      image.title,
+      [loc, toMonthYear(image.dateTaken.original)].filter(Boolean).join(' · '),
+      image.camera,
+    ];
 
     let length = 0;
     try {
@@ -398,10 +422,13 @@ function generateRss(images, dir) {
 
     return {
       title,
-      link: site.url || largestUrl,
+      // Per-photo permalink (the app's /photo/{slug} deep link), not the bare
+      // site URL — so each item opens its own photo in a reader. The image URL
+      // is the fallback when no site URL is configured.
+      link: photoPermalink(image, site.url, largestUrl),
       guid: largestUrl,
       pubDateMs: image.published,
-      descriptionHtml: buildItemDescription({ imgSrc: largestUrl, srcset, alt: title, meta }),
+      descriptionHtml: buildItemDescription({ imgSrc: largestUrl, srcset, alt: title, metaLines }),
       // Only advertise an enclosure when we know its real byte length; some
       // readers reject length="0".
       enclosure: length
@@ -423,7 +450,10 @@ function generateRss(images, dir) {
       ? `https://www.gravatar.com/avatar/${config.gravatarHash}?s=144`
       : undefined,
     items: limited,
-    lastBuildMs: Date.now(),
+    // Derive lastBuildDate from the newest item rather than "now" so the output
+    // is deterministic: an unchanged feed produces byte-identical rss.xml, which
+    // lets the sync skip re-uploading it.
+    lastBuildMs: limited[0]?.pubDateMs,
   });
 
   fs.writeFileSync(`${dir}/rss.xml`, xml);
@@ -501,32 +531,82 @@ async function run() {
   if (flags.skipConvert) activeFlags.push('skip-convert');
   if (activeFlags.length) console.log(`➤ Active flags: ${activeFlags.join(', ')}`);
 
-  // 4. Reuse already-processed photos; process only new ones (unless rebuild-all).
+  // 4. Decide per photo: reuse as-is, refresh metadata only, or fully reprocess.
+  //    The full-file hash is a cheap "did anything change?" check; when it
+  //    differs we compare the pixel hash to tell a metadata-only edit (keep the
+  //    existing renditions, just refresh feed fields) from a pixel edit (re-render).
   console.log('➤ Processing images...');
   const entries = [];
   let reused = 0;
+  let refreshed = 0;
   let built = 0;
+  let keptExisting = 0;
   for (const [index, file] of imageFiles.entries()) {
     const id = path.parse(file).name;
+    const filePath = `${photosDir}/${file}`;
     const existing = existingMap.get(id);
-    const canReuse =
-      !flags.rebuildAll &&
-      existing &&
-      existing.src?.src &&
-      fs.existsSync(`${mirrorDir}/${id}/${existing.src.src}`);
-    if (canReuse) {
-      entries.push(existing);
+    const renditionExists =
+      existing?.src?.src && fs.existsSync(`${mirrorDir}/${id}/${existing.src.src}`);
+    const sourceHash = hashFile(filePath);
+    const reusable = !flags.rebuildAll && existing && renditionExists;
+    // Computed lazily below if we need to compare pixels; reused by processImage
+    // on the re-render path so the source is never decoded twice in one run.
+    let pixelHash;
+
+    let entry = null;
+    if (reusable && existing.sourceHash === sourceHash) {
+      // Fast path: the file is byte-identical to last time -> nothing to do.
+      entry = existing;
       reused++;
-    } else {
-      const image = await processImage(file, index, photosDir, imageFiles.length, flags);
-      if (image) {
-        entries.push(image);
-        built++;
+    } else if (reusable) {
+      // Changed (or a legacy entry with no stored hash) but renditions still
+      // exist: work out whether the pixels moved. A legacy entry has no pixelHash
+      // to compare against, so we trust the existing renditions and treat it as a
+      // metadata-only edit (which also backfills both hashes for next time).
+      process.stdout.write(`  ➤ ${file}: checking for changes        \r`);
+      try {
+        pixelHash = await hashPixels(filePath);
+        const pixelsChanged = existing.pixelHash != null && pixelHash !== existing.pixelHash;
+        if (!pixelsChanged) {
+          const meta = extractMeta(await getExifData(filePath));
+          entry = { ...existing, ...meta, sourceHash, pixelHash };
+          refreshed++;
+        }
+      } catch (error) {
+        // Mirror processImage's error isolation: a bad pixel/EXIF read here must
+        // not abort the whole incremental build. Leave entry null so the photo
+        // falls through to a full re-render below (which will skip it if it also
+        // fails), exactly as a brand-new photo would.
+        console.error(`\n❌ Error refreshing ${file}:`, error.message);
       }
     }
+
+    // New photo, missing renditions, --rebuild-all, or pixels changed -> render.
+    if (!entry) {
+      const rendered = await processImage(file, index, photosDir, imageFiles.length, flags, {
+        sourceHash,
+        pixelHash,
+      });
+      // A failed render falls back to the existing entry (its renditions survive,
+      // see renderIntoDir) so a transient failure never drops the photo or its
+      // images. Only a brand-new photo with no prior entry is dropped.
+      const { entry: resolved, status } = entryAfterRender(rendered, existing);
+      entry = resolved;
+      if (status === 'built') {
+        built++;
+      } else if (status === 'kept-existing') {
+        keptExisting++;
+        console.error(`\n⚠️  ${file}: render failed; keeping previous renditions and feed entry.`);
+      }
+    }
+
+    if (entry) entries.push(entry);
   }
   console.log(''.padStart(200, ' '));
-  console.log(`✅ ${built} processed, ${reused} reused (${entries.length} photos).`);
+  const keptNote = keptExisting ? `, ${keptExisting} kept-after-failure` : '';
+  console.log(
+    `✅ ${built} processed, ${refreshed} metadata-refreshed, ${reused} reused${keptNote} (${entries.length} photos).`
+  );
 
   // 5. Assign publication dates from the ledger; new -> now; migration -> dateTaken.
   const knownPublished = {};
@@ -557,8 +637,12 @@ async function run() {
   // 7. RSS.
   generateRss(entries, mirrorDir);
 
-  // 8. Prune orphaned photo dirs so the mirror matches the feed.
-  pruneMirror(mirrorDir, new Set(entries.map(photoId)));
+  // 8. Prune mirror dirs whose source photo is gone. Keyed on the *source* set,
+  //    not the feed entries: a photo that failed to render this run is absent
+  //    from the feed but still in source, so its renditions must survive — a
+  //    transient failure must never cascade into an S3 deletion. Genuinely
+  //    removed source photos are no longer in byId, so they are still pruned.
+  pruneMirror(mirrorDir, new Set(byId.keys()));
 
   // 9. Sync up (unless skipped).
   if (flags.skipSync) {
