@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, it, expect } from 'vitest';
-import { colorEnabled, animationEnabled, makePalette, renderBar, pluralize } from '../bin/ui.js';
+import { colorEnabled, animationEnabled, makePalette, renderBar, pluralize, Ui } from '../bin/ui.js';
 
 describe('colorEnabled', () => {
   it('is on for a TTY with no color env vars', () => {
@@ -68,5 +68,55 @@ describe('pluralize', () => {
   });
   it('honors an explicit plural', () => {
     expect(pluralize(2, 'rendition', 'renditions')).toBe('2 renditions');
+  });
+});
+
+// A minimal Writable-like sink that records writes and lets us fake isTTY.
+function fakeStream(isTTY) {
+  const chunks = [];
+  return {
+    isTTY,
+    columns: 80,
+    write: (s) => { chunks.push(s); return true; },
+    output: () => chunks.join(''),
+    clearLine: () => {},
+    cursorTo: () => {},
+  };
+}
+
+describe('Ui controller', () => {
+  it('runs a full phase sequence off-TTY without throwing and emits plain text', () => {
+    const stream = fakeStream(false);
+    const ui = new Ui({ stream, env: {} });
+    ui.banner('1.0.0');
+    ui.startPhases(['Pull', 'Process', 'Sync']);
+    ui.phase('Pull');
+    const sp = ui.spinner('downloading');
+    sp.update('↓ 3 downloaded');
+    sp.succeed('done');
+    ui.phase('Process', 'photo-1');
+    ui.success('built photo-1');
+    ui.warn('a warning');
+    ui.summary('Summary', [['processed', '3'], ['reused', '1']]);
+    ui.stop();
+    const out = stream.output();
+    expect(out).toContain('Summary');
+    expect(out).toContain('built photo-1');
+    expect(out).not.toContain('\r'); // no carriage returns off-TTY
+    expect(out).not.toContain('\x1b['); // no color codes off-TTY
+  });
+
+  it('runs the same sequence in TTY mode without throwing', () => {
+    const stream = fakeStream(true);
+    const ui = new Ui({ stream, env: { FORCE_COLOR: '1' } });
+    ui.banner('1.0.0');
+    ui.startPhases(['Pull']);
+    ui.phase('Pull');
+    const sp = ui.spinner('x');
+    sp.fail('nope');
+    ui.pause();
+    ui.resume();
+    ui.stop();
+    expect(stream.output().length).toBeGreaterThan(0);
   });
 });
