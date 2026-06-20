@@ -12,6 +12,7 @@ import { Vibrant } from 'node-vibrant/node';
 import {
   buildRss,
   buildItemDescription,
+  formatLocation,
   mimeForExt,
   photoId,
   photoPermalink,
@@ -402,7 +403,7 @@ function generateRss(images, dir) {
       })
       .join(', ');
 
-    const loc = [image.location?.city, image.location?.country].filter(Boolean).join(', ');
+    const loc = formatLocation(image.location);
     const title = image.title || loc || id || 'Photo';
     // Caption rows shown under the photo: title, "location · date", camera.
     // image.title (not the fallback) keeps the first row from duplicating the

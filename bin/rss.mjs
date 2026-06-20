@@ -56,6 +56,15 @@ export function toMonthYear(exifDate) {
   return month ? `${month} ${m[1]}` : '';
 }
 
+// Human-readable location label: prefer the city, fall back to the state when
+// there's no city, then append the country (e.g. "Cluj, Romania"). Whitespace-
+// only fields are ignored. Returns an empty string when nothing is set.
+export function formatLocation(location) {
+  const clean = (value) => String(value ?? '').trim();
+  const place = clean(location?.city) || clean(location?.state);
+  return [place, clean(location?.country)].filter(Boolean).join(', ');
+}
+
 export function escapeXml(value) {
   return String(value).replace(/[<>&'"]/g, (c) => {
     switch (c) {

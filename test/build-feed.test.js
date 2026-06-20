@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.mjs';
 import { extractMeta } from '../bin/feed-meta.mjs';
+import { formatLocation } from '../bin/rss.mjs';
 
 describe('extractMeta', () => {
   const base = { DateTimeOriginal: '2024:03:15 09:30:00' };
@@ -44,6 +45,30 @@ describe('extractMeta', () => {
 
   it('throws on an unparseable DateTimeOriginal rather than returning NaN', () => {
     expect(() => extractMeta({ DateTimeOriginal: 'not a date' })).toThrow('unparseable');
+  });
+});
+
+describe('formatLocation', () => {
+  it('shows the city when present', () => {
+    expect(formatLocation({ city: 'Cluj', state: 'Cluj', country: 'Romania' })).toBe('Cluj, Romania');
+  });
+
+  it('falls back to the state when there is no city', () => {
+    expect(formatLocation({ state: 'Bavaria', country: 'Germany' })).toBe('Bavaria, Germany');
+  });
+
+  it('returns the country alone when there is no city or state', () => {
+    expect(formatLocation({ country: 'Romania' })).toBe('Romania');
+  });
+
+  it('ignores whitespace-only fields', () => {
+    expect(formatLocation({ city: '  ', state: 'Bavaria', country: ' Germany ' })).toBe('Bavaria, Germany');
+  });
+
+  it('returns an empty string for empty, null or undefined input', () => {
+    expect(formatLocation({})).toBe('');
+    expect(formatLocation(null)).toBe('');
+    expect(formatLocation(undefined)).toBe('');
   });
 });
 
