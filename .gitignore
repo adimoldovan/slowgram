@@ -137,5 +137,4 @@ memory/
 
 # Local mirror of the S3 bucket, rebuilt by bin/build-feed.mjs
 .s3-mirror/
-.local/
 docs/superpowers/

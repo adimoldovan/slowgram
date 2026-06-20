@@ -17,7 +17,7 @@ const CONTENT_TYPES = {
   '.png': 'image/png',
   '.gif': 'image/gif',
   '.json': 'application/json',
-  '.xml': 'application/rss+xml',
+  '.xml': 'application/xml',
 };
 
 export function contentTypeFor(key) {
