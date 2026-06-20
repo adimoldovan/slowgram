@@ -1,7 +1,7 @@
- 
-
 import fs from 'fs';
 import path from 'path';
+import readline from 'readline';
+import { fileURLToPath } from 'url';
 import exiftool from 'node-exiftool';
 import exiftoolBin from 'dist-exiftool';
 import imagemin from 'imagemin';
@@ -15,25 +15,30 @@ import {
   photoId,
   resolvePublishedDates,
 } from './rss.mjs';
+import { createClient, pullBucket, syncToS3 } from './s3.mjs';
 
-// Persistent "first seen in the feed" timestamps, keyed by photo id. Lives in
-// the repo (not the S3 output dir, which gets wiped on full rebuilds) so RSS
-// pubDates reflect when a photo was published, not when it was shot — newly
-// added photos always surface at the top of a reader.
-const publishedPath = new URL('../data/published.json', import.meta.url);
+const mirrorDir = fileURLToPath(new URL('../.s3-mirror', import.meta.url));
 
-function loadPublished() {
+function readJsonSafe(filePath) {
   try {
-    return JSON.parse(fs.readFileSync(publishedPath, 'utf-8'));
+    return JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   } catch {
-    return null; // missing/unreadable -> first run, seed from dateTaken
+    return null;
   }
 }
 
-function savePublished(map) {
-  const sorted = Object.fromEntries(Object.entries(map).sort(([a], [b]) => a.localeCompare(b)));
-  fs.mkdirSync(path.dirname(publishedPath.pathname), { recursive: true });
-  fs.writeFileSync(publishedPath, `${JSON.stringify(sorted, null, 2)}\n`);
+function confirm(question) {
+  if (!process.stdin.isTTY) {
+    console.log(`${question}(no TTY — assuming "no")`);
+    return Promise.resolve(false);
+  }
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(/^y(es)?$/i.test(answer.trim()));
+    });
+  });
 }
 
 function parseArgs() {
@@ -41,16 +46,28 @@ function parseArgs() {
   const flags = {
     skipConvert: false,
     skipResize: false,
+    rebuildAll: false,
+    syncOnly: false,
+    skipSync: false,
     help: false,
   };
 
-  args.forEach(arg => {
+  args.forEach((arg) => {
     switch (arg) {
       case '--skip-convert':
         flags.skipConvert = true;
         break;
       case '--skip-resize':
         flags.skipResize = true;
+        break;
+      case '--rebuild-all':
+        flags.rebuildAll = true;
+        break;
+      case '--sync-only':
+        flags.syncOnly = true;
+        break;
+      case '--skip-sync':
+        flags.skipSync = true;
         break;
       case '--help':
       case '-h':
@@ -71,17 +88,22 @@ function showHelp() {
   console.log(`
 Usage: node build-feed.mjs [options]
 
+Pulls the S3 bucket into .s3-mirror, rebuilds feed.json + rss.xml (preserving
+publication dates), then syncs .s3-mirror back to S3 after a confirmation prompt.
+
 Options:
-  --skip-convert    Skip WebP conversion of images (preserves existing files)
-  --skip-resize     Skip resizing of images (preserves existing files)
+  --rebuild-all     Reprocess every source photo (default: only new ones)
+  --skip-convert    Skip WebP conversion (when reprocessing)
+  --skip-resize     Skip resizing (when reprocessing)
+  --skip-sync       Build into .s3-mirror but do NOT upload to S3
+  --sync-only       Skip building; only sync existing .s3-mirror to S3
   --help, -h        Show this help message
 
-Note: When skip flags are used, existing files in the output directory are preserved.
-      Only when no skip flags are used will the output directory be cleared.
-
 Environment Variables:
-  SLOWGRAM_SOURCE_PATH     Path to source images directory
-  SLOWGRAM_S3_SOURCE_PATH  Path to output directory
+  SLOWGRAM_SOURCE_PATH    Path to source images (your full library) [build only]
+  SLOWGRAM_BUCKET_NAME   Target S3 bucket name [always required]
+  AWS_REGION              AWS region (or set config.json aws.region)
+  (AWS credentials via the standard AWS credential chain)
 `);
 }
 
@@ -102,11 +124,11 @@ async function getExifData(filePath) {
   } finally {
     await ep.close();
   }
-  
+
   if (!data || !data.data || !data.data[0]) {
     throw new Error(`No EXIF data found in ${filePath}`);
   }
-  
+
   return data.data[0];
 }
 
@@ -118,13 +140,22 @@ function clearDir(dir) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
+// Remove photo dirs in .s3-mirror that are no longer in the feed so the mirror
+// (and the subsequent S3 --delete) matches the current source set exactly.
+function pruneMirror(dir, keepIds) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory() && !keepIds.has(entry.name)) {
+      fs.rmSync(path.join(dir, entry.name), { recursive: true, force: true });
+      console.log(`  ➤ pruned ${entry.name}`);
+    }
+  }
+}
+
 async function convertImageToWebp(dir, fileName) {
   try {
     await imagemin([`${dir}/${fileName}`], {
       destination: dir,
-      plugins: [
-        webp({ quality: 80 }),
-      ],
+      plugins: [webp({ quality: 80 })],
     });
   } catch (error) {
     console.error(`\nError converting ${fileName} to .webp:`, error.message);
@@ -134,32 +165,56 @@ async function convertImageToWebp(dir, fileName) {
 
 function getColor(rgb) {
   const [r, g, b] = rgb;
-  
+
   const colors = [
-    { name: 'red', range: [0, 25], check: (h, s, l) => (h >= 345 || h <= 15) && s >= 30 && l >= 20 && l <= 80 },
-    { name: 'orange', range: [15, 45], check: (h, s, l) => h >= 15 && h <= 45 && s >= 40 && l >= 25 && l <= 75 },
-    { name: 'yellow', range: [45, 70], check: (h, s, l) => h >= 45 && h <= 70 && s >= 30 && l >= 30 && l <= 85 },
-    { name: 'green', range: [70, 150], check: (h, s, l) => h >= 70 && h <= 150 && s >= 25 && l >= 20 && l <= 80 },
-    { name: 'blue', range: [150, 250], check: (h, s, l) => h >= 180 && h <= 250 && s >= 25 && l >= 20 && l <= 80 },
-    { name: 'purple', range: [250, 345], check: (h, s, l) => h >= 250 && h <= 345 && s >= 25 && l >= 20 && l <= 80 },
+    {
+      name: 'red',
+      range: [0, 25],
+      check: (h, s, l) => (h >= 345 || h <= 15) && s >= 30 && l >= 20 && l <= 80,
+    },
+    {
+      name: 'orange',
+      range: [15, 45],
+      check: (h, s, l) => h >= 15 && h <= 45 && s >= 40 && l >= 25 && l <= 75,
+    },
+    {
+      name: 'yellow',
+      range: [45, 70],
+      check: (h, s, l) => h >= 45 && h <= 70 && s >= 30 && l >= 30 && l <= 85,
+    },
+    {
+      name: 'green',
+      range: [70, 150],
+      check: (h, s, l) => h >= 70 && h <= 150 && s >= 25 && l >= 20 && l <= 80,
+    },
+    {
+      name: 'blue',
+      range: [150, 250],
+      check: (h, s, l) => h >= 180 && h <= 250 && s >= 25 && l >= 20 && l <= 80,
+    },
+    {
+      name: 'purple',
+      range: [250, 345],
+      check: (h, s, l) => h >= 250 && h <= 345 && s >= 25 && l >= 20 && l <= 80,
+    },
   ];
-  
+
   // Convert RGB to HSL
   const rNorm = r / 255;
   const gNorm = g / 255;
   const bNorm = b / 255;
-  
+
   const max = Math.max(rNorm, gNorm, bNorm);
   const min = Math.min(rNorm, gNorm, bNorm);
   const diff = max - min;
-  
+
   const l = (max + min) / 2;
   let s = 0;
   let h = 0;
-  
+
   if (diff !== 0) {
     s = l > 0.5 ? diff / (2 - max - min) : diff / (max + min);
-    
+
     switch (max) {
       case rNorm:
         h = ((gNorm - bNorm) / diff + (gNorm < bNorm ? 6 : 0)) / 6;
@@ -175,20 +230,20 @@ function getColor(rgb) {
         break;
     }
   }
-  
+
   h *= 360;
   s *= 100;
   const lPercent = l * 100;
-  
+
   // Check if it's grayscale
   if (s < 15 || lPercent < 15 || lPercent > 85) {
     if (lPercent < 30) return 'black';
     if (lPercent > 70) return 'white';
     return 'gray';
   }
-  
+
   // Find matching color
-  const matchingColor = colors.find(color => color.check(h, s, lPercent));
+  const matchingColor = colors.find((color) => color.check(h, s, lPercent));
   return matchingColor ? matchingColor.name : 'gray';
 }
 
@@ -196,55 +251,136 @@ async function extractColors(filePath) {
   try {
     const palette = await Vibrant.from(filePath).getPalette();
     const colorCounts = {};
-    
+
     const swatchesToProcess = [
-      palette.Vibrant, 
-      palette.Muted, 
-      palette.DarkVibrant, 
-      palette.DarkMuted, 
-      palette.LightVibrant, 
-      palette.LightMuted
+      palette.Vibrant,
+      palette.Muted,
+      palette.DarkVibrant,
+      palette.DarkMuted,
+      palette.LightVibrant,
+      palette.LightMuted,
     ];
-    
+
     swatchesToProcess.forEach((swatch) => {
       if (swatch) {
         const color = getColor(swatch.rgb);
         colorCounts[color] = (colorCounts[color] || 0) + swatch.population;
       }
     });
-    
+
     // Calculate total population for percentage conversion
     const totalPopulation = Object.values(colorCounts).reduce((sum, pop) => sum + pop, 0);
-    
-    return Object.entries(colorCounts)
-      .sort(([,a], [,b]) => b - a)
-      .map(([color, population]) => ({ 
-        color, 
-        population: Math.round((population / totalPopulation) * 100)
-      }));
 
+    return Object.entries(colorCounts)
+      .sort(([, a], [, b]) => b - a)
+      .map(([color, population]) => ({
+        color,
+        population: Math.round((population / totalPopulation) * 100),
+      }));
   } catch (error) {
     console.error(`Error extracting colors from ${filePath}:`, error);
     return [];
   }
 }
 
-function generateRss(images, outputDir) {
-  const site = config.site || {};
-  const now = Date.now();
-  const { map: published, firstRun } = resolvePublishedDates(images, loadPublished(), now);
+async function processImage(file, index, photosDir, total, flags) {
+  const progress = `${Math.round((index / total) * 100)}% ${file}`;
+  const image = {};
 
-  if (firstRun) {
-    console.log('➤ No published.json found — seeding RSS dates from each photo\'s date taken.');
+  try {
+    process.stdout.write(`  ➤ ${progress}: getting EXIF data\r`);
+    const filePath = `${photosDir}/${file}`;
+    const data = await getExifData(filePath);
+
+    const dateParts = data.DateTimeOriginal.split(' ');
+    const datePart = dateParts[0].replace(/:/g, '-');
+    const [, timePart] = dateParts;
+    const timestamp = Date.parse(`${datePart}T${timePart}`);
+    image.dateTaken = { timestamp, original: data.DateTimeOriginal };
+
+    image.camera = `${data.Make} ${data.Model}`;
+    image.location = { city: data.City, state: data.State, country: data.Country };
+    image.title = data.ObjectName;
+    image.keywords = data.Keywords;
+
+    process.stdout.write(`  ➤ ${progress}: extracting colors\r`);
+    image.colors = await extractColors(filePath);
+
+    const parsedPath = path.parse(filePath);
+    const [originalWidth] = data.ImageSize.split('x');
+    image.src = { path: `${config.feed.photos}/${parsedPath.name}`, set: [] };
+
+    if (flags.skipResize && flags.skipConvert) {
+      process.stdout.write(`  ➤ ${progress}: copying original file                \r`);
+      const setPath = `${mirrorDir}/${parsedPath.name}`;
+      if (!fs.existsSync(setPath)) fs.mkdirSync(setPath, { recursive: true });
+      const originalFileName = `${parsedPath.name}${parsedPath.ext}`;
+      fs.copyFileSync(filePath, `${setPath}/${originalFileName}`);
+      image.src.set.push(`${originalFileName} ${originalWidth}w`);
+      image.src.src = originalFileName;
+    } else {
+      const setPath = `${mirrorDir}/${parsedPath.name}`;
+      clearDir(setPath);
+      let lastSize = 0;
+      const validSizes = sizes.filter((targetWidth) => targetWidth <= originalWidth);
+
+      await Promise.all(
+        validSizes.map(async (targetWidth) => {
+          const targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
+          const targetFilePath = `${setPath}/${targetFileName}`;
+          let finalFileName = targetFileName;
+
+          if (!flags.skipResize) {
+            process.stdout.write(`  ➤ ${progress}: resizing to ${targetWidth}w                \r`);
+            await sharp(filePath)
+              .resize(targetWidth, null, { withoutEnlargement: true })
+              .toFile(targetFilePath);
+          } else {
+            process.stdout.write(
+              `  ➤ ${progress}: copying original to ${targetWidth}w slot                \r`
+            );
+            fs.copyFileSync(filePath, targetFilePath);
+          }
+
+          if (!flags.skipConvert) {
+            process.stdout.write(
+              `  ➤ ${progress}: Converting ${targetFileName} to .webp        \r`
+            );
+            await convertImageToWebp(setPath, targetFileName);
+            finalFileName = `${parsedPath.name}-${targetWidth}w.webp`;
+            fs.rmSync(targetFilePath);
+          }
+
+          image.src.set.push(`${finalFileName} ${targetWidth}w`);
+          if (targetWidth > lastSize) {
+            lastSize = targetWidth;
+            image.src.src = finalFileName;
+          }
+        })
+      );
+      // Keep srcset deterministic regardless of Promise resolution order.
+      image.src.set.sort((a, b) => parseInt(a.split(' ')[1], 10) - parseInt(b.split(' ')[1], 10));
+    }
+
+    return image;
+  } catch (error) {
+    console.error(`\n❌ Error processing ${file}:`, error.message);
+    return null;
   }
+}
+
+function generateRss(images, dir) {
+  const site = config.site || {};
 
   const items = images.map((image) => {
     const id = photoId(image);
     const largestUrl = `${image.src.path}/${image.src.src}`;
-    const srcset = image.src.set.map((pair) => {
-      const [file, width] = pair.split(' ');
-      return `${image.src.path}/${file} ${width}`;
-    }).join(', ');
+    const srcset = image.src.set
+      .map((pair) => {
+        const [fileName, width] = pair.split(' ');
+        return `${image.src.path}/${fileName} ${width}`;
+      })
+      .join(', ');
 
     const loc = [image.location?.city, image.location?.country].filter(Boolean).join(', ');
     const title = image.title || loc || image.dateTaken.original || 'Photo';
@@ -252,7 +388,7 @@ function generateRss(images, outputDir) {
 
     let length;
     try {
-      length = fs.statSync(`${outputDir}/${id}/${image.src.src}`).size;
+      length = fs.statSync(`${dir}/${id}/${image.src.src}`).size;
     } catch {
       length = 0;
     }
@@ -261,13 +397,11 @@ function generateRss(images, outputDir) {
       title,
       link: site.url || largestUrl,
       guid: largestUrl,
-      pubDateMs: published[id],
+      pubDateMs: image.published,
       descriptionHtml: buildItemDescription({ imgSrc: largestUrl, srcset, alt: title, meta }),
       enclosure: { url: largestUrl, length, type: mimeForExt(path.extname(image.src.src)) },
     };
   });
-
-  savePublished(published);
 
   items.sort((a, b) => b.pubDateMs - a.pubDateMs);
   const maxItems = config.rss?.maxItems ?? 50;
@@ -282,204 +416,121 @@ function generateRss(images, outputDir) {
       ? `https://www.gravatar.com/avatar/${config.gravatarHash}?s=144`
       : undefined,
     items: limited,
-    lastBuildMs: now,
+    lastBuildMs: Date.now(),
   });
 
-  const rssPath = `${outputDir}/rss.xml`;
-  fs.writeFileSync(rssPath, xml);
-  console.log(`✅ RSS feed saved as ${rssPath} (${limited.length}/${items.length} items).`);
+  fs.writeFileSync(`${dir}/rss.xml`, xml);
+  console.log(`✅ rss.xml written (${limited.length}/${items.length} items).`);
 }
 
 async function run() {
   console.log();
-
   const flags = parseArgs();
-  
   if (flags.help) {
     showHelp();
     return;
   }
 
+  const bucket = process.env.SLOWGRAM_BUCKET_NAME;
+  if (!bucket) throw new Error('SLOWGRAM_BUCKET_NAME environment variable is required');
+
+  fs.mkdirSync(mirrorDir, { recursive: true });
+  const client = createClient(config);
+
+  // --sync-only: skip all building, just push the existing .s3-mirror to S3.
+  if (flags.syncOnly) {
+    await syncToS3(client, bucket, mirrorDir, { confirm });
+    return;
+  }
+
   const photosDir = process.env.SLOWGRAM_SOURCE_PATH;
-  const outputDir = process.env.SLOWGRAM_S3_SOURCE_PATH;
-
-  if (!photosDir) {
-    throw new Error('SLOWGRAM_SOURCE_PATH environment variable is required');
-  }
-  
-  if (!outputDir) {
-    throw new Error('SLOWGRAM_S3_SOURCE_PATH environment variable is required');
-  }
-
+  if (!photosDir) throw new Error('SLOWGRAM_SOURCE_PATH environment variable is required');
   if (!fs.existsSync(photosDir)) {
     throw new Error(`Source directory does not exist: ${photosDir}`);
   }
 
+  // 1. Mirror the bucket into .s3-mirror (additive download).
+  console.log(`➤ Pulling s3://${bucket} into .s3-mirror`);
+  const pulled = await pullBucket(client, bucket, mirrorDir);
+  console.log(`✅ Mirror ready (${pulled.downloaded} downloaded, ${pulled.skipped} current).`);
+
+  // 2. Existing feed = the publication-date ledger + reuse source.
+  const existingFeed = readJsonSafe(`${mirrorDir}/feed.json`) || [];
+  const existingMap = new Map(existingFeed.map((e) => [photoId(e), e]));
+
+  // 3. Find source images.
   console.log(`➤ Finding images in ${photosDir}`);
-  const files = fs.readdirSync(photosDir);
-  const imageFiles = files.filter((file) => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file).toLowerCase()));
-  
+  const imageFiles = fs
+    .readdirSync(photosDir)
+    .filter((file) => ['.jpg', '.jpeg', '.png', '.gif'].includes(path.extname(file).toLowerCase()));
   if (imageFiles.length === 0) {
     console.log('No image files found in source directory');
     return;
   }
-  
   console.log(`➤ Found ${imageFiles.length} image files`);
-  
-  // Show active flags
+
   const activeFlags = [];
+  if (flags.rebuildAll) activeFlags.push('rebuild-all');
   if (flags.skipResize) activeFlags.push('skip-resize');
   if (flags.skipConvert) activeFlags.push('skip-convert');
-  if (activeFlags.length > 0) {
-    console.log(`➤ Active flags: ${activeFlags.join(', ')}`);
-  }
-  
-  const images = [];
+  if (activeFlags.length) console.log(`➤ Active flags: ${activeFlags.join(', ')}`);
 
-  if (!flags.skipResize && !flags.skipConvert) {
-    console.log(`➤ Clearing ${outputDir} folder...`);
-    clearDir(outputDir);
-  } else {
-    console.log(`➤ Preserving existing files in ${outputDir} folder...`);
-    // Ensure output directory exists
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-  }
-
+  // 4. Reuse already-processed photos; process only new ones (unless rebuild-all).
   console.log('➤ Processing images...');
-  
-  async function processImage(file, index) {
-    const progress = `${Math.round((index / imageFiles.length) * 100)}% ${file}`;
-    const image = {};
-
-    try {
-      process.stdout.write(`  ➤ ${progress}: getting EXIF data\r`);
-      const filePath = `${photosDir}/${file}`;
-      const data = await getExifData(filePath);
-
-    // Get the date taken in timestamp and original format
-    const dateParts = data.DateTimeOriginal.split(' ');
-    const datePart = dateParts[0].replace(/:/g, '-');
-    const [, timePart] = dateParts;
-    const timestamp = Date.parse(`${datePart}T${timePart}`);
-    image.dateTaken = {
-      timestamp,
-      original: data.DateTimeOriginal,
-    };
-
-    // Set the rest of the image data
-    image.camera = `${data.Make} ${data.Model}`;
-    image.location = {
-      city: data.City,
-      state: data.State,
-      country: data.Country,
-    };
-    image.title = data.ObjectName;
-    image.keywords = data.Keywords;
-
-    // Extract dominant colors
-    process.stdout.write(`  ➤ ${progress}: extracting colors\r`);
-    image.colors = await extractColors(filePath);
-
-    // Build the srcset
-    const parsedPath = path.parse(filePath);
-    const [originalWidth] = data.ImageSize.split('x');
-    image.src = {
-      path: `${config.feed.photos}/${parsedPath.name}`,
-      set: [],
-    };
-
-    if (flags.skipResize && flags.skipConvert) {
-      // Skip all processing, just copy original file
-      process.stdout.write(`  ➤ ${progress}: copying original file                \r`);
-      const setPath = `${outputDir}/${parsedPath.name}`;
-      if (!fs.existsSync(setPath)) {
-        fs.mkdirSync(setPath, { recursive: true });
-      }
-      const originalFileName = `${parsedPath.name}${parsedPath.ext}`;
-      fs.copyFileSync(filePath, `${setPath}/${originalFileName}`);
-      image.src.set.push(`${originalFileName} ${originalWidth}w`);
-      image.src.src = originalFileName;
+  const entries = [];
+  let reused = 0;
+  let built = 0;
+  for (const [index, file] of imageFiles.entries()) {
+    const id = path.parse(file).name;
+    const existing = existingMap.get(id);
+    const canReuse =
+      !flags.rebuildAll &&
+      existing &&
+      existing.src?.src &&
+      fs.existsSync(`${mirrorDir}/${id}/${existing.src.src}`);
+    if (canReuse) {
+      entries.push(existing);
+      reused++;
     } else {
-      const setPath = `${outputDir}/${parsedPath.name}`;
-      if (!flags.skipResize && !flags.skipConvert) {
-        clearDir(setPath);
-      } else if (!fs.existsSync(setPath)) {
-        // Preserve existing files, just ensure directory exists
-        fs.mkdirSync(setPath, { recursive: true });
+      const image = await processImage(file, index, photosDir, imageFiles.length, flags);
+      if (image) {
+        entries.push(image);
+        built++;
       }
-      let lastSize = 0;
-
-      const validSizes = sizes.filter(targetWidth => targetWidth <= originalWidth);
-      
-      await Promise.all(validSizes.map(async (targetWidth) => {
-        const targetFileName = `${parsedPath.name}-${targetWidth}w${parsedPath.ext}`;
-        const targetFilePath = `${setPath}/${targetFileName}`;
-        let finalFileName = targetFileName;
-
-        if (!flags.skipResize) {
-          process.stdout.write(`  ➤ ${progress}: resizing to ${targetWidth}w                \r`);
-          await sharp(filePath)
-            .resize(targetWidth, null, { withoutEnlargement: true })
-            .toFile(targetFilePath);
-        } else {
-          // Skip resize, just copy original
-          process.stdout.write(`  ➤ ${progress}: copying original to ${targetWidth}w slot                \r`);
-          fs.copyFileSync(filePath, targetFilePath);
-        }
-
-        if (!flags.skipConvert) {
-          // Convert to webp
-          process.stdout.write(`  ➤ ${progress}: Converting ${targetFileName} to .webp        \r`);
-          await convertImageToWebp(setPath, targetFileName);
-          const convertedFileName = `${parsedPath.name}-${targetWidth}w.webp`;
-          finalFileName = convertedFileName;
-          
-          // Remove the original (jpg) file
-          fs.rmSync(targetFilePath);
-        }
-
-        image.src.set.push(`${finalFileName} ${targetWidth}w`);
-
-        if (targetWidth > lastSize) {
-          lastSize = targetWidth;
-          image.src.src = finalFileName;
-        }
-      }));
-    }
-
-      return image;
-    } catch (error) {
-      console.error(`\n❌ Error processing ${file}:`, error.message);
-      return null;
     }
   }
-
-  const processedImages = await Promise.all(
-    imageFiles.map((file, index) => processImage(file, index))
-  );
-  
-  // Filter out failed images
-  const validImages = processedImages.filter(img => img !== null);
-  images.push(...validImages);
-  
-  if (validImages.length < processedImages.length) {
-    const failedCount = processedImages.length - validImages.length;
-    console.log(`\n⚠️  ${failedCount} image(s) failed to process`);
-  }
-
   console.log(''.padStart(200, ' '));
-  console.log(`✅ Added ${images.length} images in feed.`.padEnd(50, ' '));
+  console.log(`✅ ${built} processed, ${reused} reused (${entries.length} photos).`);
 
-  images.sort((a, b) => b.dateTaken.timestamp - a.dateTaken.timestamp);
-  console.log('✅ Sorted by date taken.');
+  // 5. Assign publication dates from the ledger; new -> now; migration -> dateTaken.
+  const knownPublished = {};
+  for (const e of existingFeed) {
+    if (e.published != null) knownPublished[photoId(e)] = e.published;
+  }
+  const seed = Object.keys(knownPublished).length ? knownPublished : null;
+  const { map: published, firstRun } = resolvePublishedDates(entries, seed, Date.now());
+  if (firstRun) {
+    console.log("➤ Seeding publication dates from each photo's date taken (first run).");
+  }
+  for (const e of entries) e.published = published[photoId(e)];
 
-  const feedFilePath = `${outputDir}/feed.json`;
-  fs.writeFileSync(feedFilePath, JSON.stringify(images, null, 2));
-  console.log(`✅ Feed saved as ${feedFilePath}.`);
+  // 6. Sort by date taken (gallery order) and write feed.json.
+  entries.sort((a, b) => b.dateTaken.timestamp - a.dateTaken.timestamp);
+  fs.writeFileSync(`${mirrorDir}/feed.json`, JSON.stringify(entries, null, 2));
+  console.log(`✅ feed.json written (${entries.length} photos).`);
 
-  generateRss(images, outputDir);
+  // 7. RSS.
+  generateRss(entries, mirrorDir);
+
+  // 8. Prune orphaned photo dirs so the mirror matches the feed.
+  pruneMirror(mirrorDir, new Set(entries.map(photoId)));
+
+  // 9. Sync up (unless skipped).
+  if (flags.skipSync) {
+    console.log('➤ --skip-sync set; .s3-mirror built but not uploaded.');
+    return;
+  }
+  await syncToS3(client, bucket, mirrorDir, { confirm });
 }
 
 try {
