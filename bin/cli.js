@@ -2,6 +2,10 @@
 // unit-tested; main() (added later) validates env vars and dispatches to the
 // pipeline runners.
 
+import fs from 'fs';
+import { ui } from './ui.js';
+import { runBuild, runCheck, runSync } from './pipeline.js';
+
 const BUILD_FLAGS = {
   '--rebuild-all': 'rebuildAll',
   '--skip-convert': 'skipConvert',
@@ -65,10 +69,6 @@ export function parse(argv) {
   return { command: first, options, error: null };
 }
 
-import fs from 'fs';
-import { ui } from './ui.js';
-import { runBuild, runCheck, runSync } from './pipeline.js';
-
 function version() {
   const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
   return pkg.version;
@@ -103,7 +103,7 @@ export async function main(argv) {
   const { command, options, error } = parse(argv);
 
   if (command === 'version') { ui.line(version()); return; }
-  if (error) { ui.error(error); ui.line(HELP_TEXT); throw new Error(error); }
+  if (error) { ui.error(error); ui.line(HELP_TEXT); process.exitCode = 1; return; }
   if (command === 'help') { ui.banner(version()); ui.line(HELP_TEXT); return; }
 
   ui.banner(version());

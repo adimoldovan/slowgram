@@ -4,6 +4,8 @@
 // signature-locked wrappers in pipeline.js can emit output without taking a ui
 // argument, and so everything degrades together off-TTY.
 
+import process from 'process';
+
 // NO_COLOR wins; FORCE_COLOR=0 disables; FORCE_COLOR set (else) forces on;
 // otherwise color follows the TTY. Matches the supports-color/chalk convention.
 export function colorEnabled({ env, isTTY }) {
@@ -37,8 +39,6 @@ export function renderBar(step, total, width = 20) {
 export function pluralize(n, singular, plural = `${singular}s`) {
   return `${n} ${n === 1 ? singular : plural}`;
 }
-
-import process from 'process';
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
