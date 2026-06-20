@@ -64,3 +64,52 @@ export function parse(argv) {
 
   return { command: first, options, error: null };
 }
+
+import fs from 'fs';
+import { ui } from './ui.js';
+import { runBuild, runCheck, runSync } from './pipeline.js';
+
+function version() {
+  const pkg = JSON.parse(fs.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
+  return pkg.version;
+}
+
+const ENV_REQS = {
+  build: ['SLOWGRAM_SOURCE_PATH', 'SLOWGRAM_BUCKET_NAME'],
+  check: ['SLOWGRAM_SOURCE_PATH', 'SLOWGRAM_BUCKET_NAME'],
+  sync: ['SLOWGRAM_BUCKET_NAME'],
+};
+
+function requireEnv(command) {
+  for (const name of ENV_REQS[command] || []) {
+    if (!process.env[name]) throw new Error(`${name} environment variable is required`);
+  }
+}
+
+function renderBuildSummary(r) {
+  ui.summary('Build complete', [
+    ['processed', r.built],
+    ['metadata-refreshed', r.refreshed],
+    ['reused', r.reused],
+    ['kept-after-failure', r.keptExisting],
+    ['pruned', r.pruned],
+    ['feed.json photos', r.feedCount],
+    ['rss.xml items', r.rssCount],
+    ['uploaded', r.synced ? 'yes' : 'no (built locally)'],
+  ]);
+}
+
+export async function main(argv) {
+  const { command, options, error } = parse(argv);
+
+  if (command === 'version') { ui.line(version()); return; }
+  if (error) { ui.error(error); ui.line(HELP_TEXT); throw new Error(error); }
+  if (command === 'help') { ui.banner(version()); ui.line(HELP_TEXT); return; }
+
+  ui.banner(version());
+  requireEnv(command);
+
+  if (command === 'build') { renderBuildSummary(await runBuild(options)); return; }
+  if (command === 'check') { await runCheck(); return; }
+  if (command === 'sync') { await runSync(); }
+}
