@@ -62,7 +62,12 @@ export default async function getPhotosGallery() {
 
   let photos;
   try {
-    const response = await fetch(config.feed.url);
+    // Bypass the browser HTTP cache: the CDN serves feed.json with a long
+    // immutable Cache-Control, which iOS WebKit honors so aggressively that
+    // even the service worker's NetworkFirst handler never reaches the network.
+    // Only the feed needs this — photo URLs are content-addressed, so a fresh
+    // feed is enough to surface new images.
+    const response = await fetch(config.feed.url, { cache: 'reload' });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     photos = await response.json();
   } catch {

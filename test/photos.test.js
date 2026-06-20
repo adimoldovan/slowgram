@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { getVisiblePhotoIndices } from '../src/photos';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import getPhotosGallery, { getVisiblePhotoIndices } from '../src/photos';
+import config from '../config.json';
 
 const samplePhotos = [
   {
@@ -33,6 +34,27 @@ const samplePhotos = [
     ],
   },
 ];
+
+describe('feed fetching', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('bypasses the HTTP cache so a new feed is loaded, not the immutable cached copy', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => [],
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getPhotosGallery();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      config.feed.url,
+      expect.objectContaining({ cache: 'reload' }),
+    );
+  });
+});
 
 describe('getVisiblePhotoIndices', () => {
   it('returns an array (defaults to empty before gallery loads)', () => {
