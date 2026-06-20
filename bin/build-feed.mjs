@@ -8,6 +8,33 @@ import imagemin from 'imagemin';
 import webp from 'imagemin-webp';
 import sharp from 'sharp';
 import { Vibrant } from 'node-vibrant/node';
+import {
+  buildRss,
+  buildItemDescription,
+  mimeForExt,
+  photoId,
+  resolvePublishedDates,
+} from './rss.mjs';
+
+// Persistent "first seen in the feed" timestamps, keyed by photo id. Lives in
+// the repo (not the S3 output dir, which gets wiped on full rebuilds) so RSS
+// pubDates reflect when a photo was published, not when it was shot — newly
+// added photos always surface at the top of a reader.
+const publishedPath = new URL('../data/published.json', import.meta.url);
+
+function loadPublished() {
+  try {
+    return JSON.parse(fs.readFileSync(publishedPath, 'utf-8'));
+  } catch {
+    return null; // missing/unreadable -> first run, seed from dateTaken
+  }
+}
+
+function savePublished(map) {
+  const sorted = Object.fromEntries(Object.entries(map).sort(([a], [b]) => a.localeCompare(b)));
+  fs.mkdirSync(path.dirname(publishedPath.pathname), { recursive: true });
+  fs.writeFileSync(publishedPath, `${JSON.stringify(sorted, null, 2)}\n`);
+}
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -202,6 +229,67 @@ async function extractColors(filePath) {
   }
 }
 
+function generateRss(images, outputDir) {
+  const site = config.site || {};
+  const now = Date.now();
+  const { map: published, firstRun } = resolvePublishedDates(images, loadPublished(), now);
+
+  if (firstRun) {
+    console.log('➤ No published.json found — seeding RSS dates from each photo\'s date taken.');
+  }
+
+  const items = images.map((image) => {
+    const id = photoId(image);
+    const largestUrl = `${image.src.path}/${image.src.src}`;
+    const srcset = image.src.set.map((pair) => {
+      const [file, width] = pair.split(' ');
+      return `${image.src.path}/${file} ${width}`;
+    }).join(', ');
+
+    const loc = [image.location?.city, image.location?.country].filter(Boolean).join(', ');
+    const title = image.title || loc || image.dateTaken.original || 'Photo';
+    const meta = [image.camera, loc, image.dateTaken.original].filter(Boolean).join(' · ');
+
+    let length;
+    try {
+      length = fs.statSync(`${outputDir}/${id}/${image.src.src}`).size;
+    } catch {
+      length = 0;
+    }
+
+    return {
+      title,
+      link: site.url || largestUrl,
+      guid: largestUrl,
+      pubDateMs: published[id],
+      descriptionHtml: buildItemDescription({ imgSrc: largestUrl, srcset, alt: title, meta }),
+      enclosure: { url: largestUrl, length, type: mimeForExt(path.extname(image.src.src)) },
+    };
+  });
+
+  savePublished(published);
+
+  items.sort((a, b) => b.pubDateMs - a.pubDateMs);
+  const maxItems = config.rss?.maxItems ?? 50;
+  const limited = items.slice(0, maxItems);
+
+  const xml = buildRss({
+    title: site.title || 'Slowgram',
+    link: site.url || '',
+    description: site.description || '',
+    feedUrl: config.feed?.rss,
+    imageUrl: config.gravatarHash
+      ? `https://www.gravatar.com/avatar/${config.gravatarHash}?s=144`
+      : undefined,
+    items: limited,
+    lastBuildMs: now,
+  });
+
+  const rssPath = `${outputDir}/rss.xml`;
+  fs.writeFileSync(rssPath, xml);
+  console.log(`✅ RSS feed saved as ${rssPath} (${limited.length}/${items.length} items).`);
+}
+
 async function run() {
   console.log();
 
@@ -390,6 +478,8 @@ async function run() {
   const feedFilePath = `${outputDir}/feed.json`;
   fs.writeFileSync(feedFilePath, JSON.stringify(images, null, 2));
   console.log(`✅ Feed saved as ${feedFilePath}.`);
+
+  generateRss(images, outputDir);
 }
 
 try {

@@ -10,7 +10,16 @@
   ],
   "feed": {
     "url": "https://d35zx8ajzaahp4.cloudfront.net/feed.json",
-    "photos": "https://d35zx8ajzaahp4.cloudfront.net"
+    "photos": "https://d35zx8ajzaahp4.cloudfront.net",
+    "rss": "https://slowgram.amoldovan.ro/rss"
+  },
+  "site": {
+    "url": "https://slowgram.amoldovan.ro",
+    "title": "Adi's slowgram",
+    "description": "A photo every now and then. No stories, no reels, no likes either."
+  },
+  "rss": {
+    "maxItems": 50
   },
   "gitUrl": "https://github.com/adimoldovan/slowgram.git"
 }
