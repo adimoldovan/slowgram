@@ -439,7 +439,7 @@ function generateRss(images, dir) {
   });
 
   items.sort((a, b) => b.pubDateMs - a.pubDateMs);
-  const maxItems = config.rss?.maxItems ?? 50;
+  const maxItems = config.rss?.maxItems ?? 200;
   const limited = items.slice(0, maxItems);
 
   const xml = buildRss({

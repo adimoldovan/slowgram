@@ -19,7 +19,7 @@
     "description": "A photo every now and then. No stories, no reels, no likes either."
   },
   "rss": {
-    "maxItems": 50
+    "maxItems": 200
   },
   "gitUrl": "https://github.com/adimoldovan/slowgram.git"
 }
