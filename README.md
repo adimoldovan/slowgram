@@ -27,7 +27,10 @@ processes any new ones from `SLOWGRAM_SOURCE_PATH`, regenerates `feed.json` and
 `rss.xml`, then syncs `.s3-mirror` back to S3 via the AWS SDK — after asking
 for confirmation.
 
-Install the command once with `npm link` (or run via `npx slowgram`).
+Install the command once with `npm link` so `slowgram` is on your PATH. Without
+installing, run it via `npx slowgram <command>` or directly with
+`node bin/build-feed.js <command>` (all three are equivalent). `slowgram help`
+and `slowgram --version` need no environment variables.
 
 ```bash
 slowgram build              # pull, build new photos, prompt, sync
@@ -40,8 +43,8 @@ slowgram help
 
 Environment:
 
-- `SLOWGRAM_SOURCE_PATH` — your full photo library (build only).
-- `SLOWGRAM_BUCKET_NAME` — target S3 bucket (always).
+- `SLOWGRAM_SOURCE_PATH` — your full photo library (`build` and `check`).
+- `SLOWGRAM_BUCKET_NAME` — target S3 bucket (`build`, `check`, `sync`).
 - AWS credentials via the standard AWS chain; region via `AWS_REGION` or
   `config.json` `aws.region`.
 
