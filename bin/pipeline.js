@@ -65,7 +65,7 @@ async function getExifData(filePath) {
   try {
     data = await ep.readMetadata(filePath, ['-File:all']);
   } catch (error) {
-    console.error(`Error reading EXIF data from ${filePath}:`, error.message);
+    ui.error(`Error reading EXIF data from ${filePath}: ${error.message}`);
     throw error;
   } finally {
     await ep.close();
@@ -101,7 +101,7 @@ async function convertImageToWebp(dir, fileName) {
       plugins: [webp({ quality: 80 })],
     });
   } catch (error) {
-    console.error(`\nError converting ${fileName} to .webp:`, error.message);
+    ui.error(`Error converting ${fileName} to .webp: ${error.message}`);
     throw error;
   }
 }
@@ -221,7 +221,7 @@ async function extractColors(filePath) {
         population: Math.round((population / totalPopulation) * 100),
       }));
   } catch (error) {
-    console.error(`Error extracting colors from ${filePath}:`, error);
+    ui.error(`Error extracting colors from ${filePath}: ${error.message ?? error}`);
     return [];
   }
 }
@@ -450,7 +450,6 @@ function generateRss(images, dir) {
 // Returns { updates, removals } — the same data it prints — so callers (and
 // tests) can inspect the result without scraping the log. runBuild() ignores it.
 export async function reportUpdates(imageFiles, photosDir, existingMap, keepIds, mirrorDir) {
-  ui.phase('Scan');
   ui.info('Checking for updates…');
   const updates = [];
   for (const file of imageFiles) {
@@ -616,7 +615,7 @@ export async function runBuild(options) {
   ui.success(
     `${built} processed, ${refreshed} metadata-refreshed, ${reused} reused` +
       `${keptExisting ? `, ${keptExisting} kept-after-failure` : ''} ` +
-      `(${pluralize(entries.length, 'photo')})`
+      `(${pluralize(entries.length, 'photo')}).`
   );
 
   // --- Dates: publication-date assignment (identical to lines ~727–746). ---
