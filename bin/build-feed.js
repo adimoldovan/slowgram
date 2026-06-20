@@ -630,9 +630,10 @@ async function run() {
   }
   for (const e of entries) e.published = published[photoId(e)];
 
-  // 6. Sort by date taken (gallery order) and write feed.json.
+  // 6. Sort by date taken (gallery order) and write feed.json. Minified (no
+  // pretty-printing) to shave bytes off the feed every reader downloads.
   entries.sort((a, b) => b.dateTaken.timestamp - a.dateTaken.timestamp);
-  fs.writeFileSync(`${mirrorDir}/feed.json`, JSON.stringify(entries, null, 2));
+  fs.writeFileSync(`${mirrorDir}/feed.json`, JSON.stringify(entries));
   console.log(`✅ feed.json written (${entries.length} photos).`);
 
   // 7. RSS.

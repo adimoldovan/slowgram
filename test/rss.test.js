@@ -261,6 +261,35 @@ describe('buildRss', () => {
     expect(out).not.toContain('1970');
   });
 
+  it('is minified: no indentation or newlines between tags', () => {
+    // The feed every reader downloads should carry no structural whitespace.
+    expect(xml).not.toContain('\n');
+    expect(xml).toContain('</title><link>'); // tags sit flush against each other
+  });
+
+  it('preserves a newline inside a value rather than collapsing it', () => {
+    // Minifying must only drop the inter-tag indentation, never whitespace that
+    // is part of a value (titles/captions come from free-text EXIF/IPTC fields).
+    const out = buildRss({
+      title: 'Line one\nLine two',
+      link: 'https://x',
+      description: 'd',
+      items: [
+        {
+          title: 't',
+          link: 'https://x',
+          guid: 'g',
+          pubDateMs: Date.UTC(2026, 5, 20, 14, 0, 0),
+          descriptionHtml: '<p>caption A\ncaption B</p>',
+        },
+      ],
+    });
+    expect(out).toContain('<title>Line one\nLine two</title>');
+    expect(out).toContain('caption A\ncaption B');
+    const doc = new DOMParser().parseFromString(out, 'application/xml');
+    expect(doc.querySelector('parsererror')).toBeNull();
+  });
+
   it('produces well-formed XML (parses without errors)', () => {
     // jsdom (test environment) provides DOMParser; XML mode reports a
     // <parsererror> element on malformed input.

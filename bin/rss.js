@@ -151,14 +151,14 @@ export function buildRss({
         `      <title>${escapeXml(title)}</title>`,
         `      <link>${escapeXml(link)}</link>`,
         '    </image>',
-      ].join('\n')
-    : null;
+      ]
+    : [];
 
   const atomSelf = feedUrl
-    ? `    <atom:link href="${escapeXml(feedUrl)}" rel="self" type="application/rss+xml" />`
-    : null;
+    ? [`    <atom:link href="${escapeXml(feedUrl)}" rel="self" type="application/rss+xml" />`]
+    : [];
 
-  const itemXml = items.map((item) => {
+  const itemXml = items.flatMap((item) => {
     const lines = [
       '    <item>',
       `      <title>${escapeXml(item.title)}</title>`,
@@ -174,15 +174,20 @@ export function buildRss({
       );
     }
     lines.push('    </item>');
-    return lines.join('\n');
+    return lines;
   });
 
   // Omit lastBuildDate entirely when we have no real timestamp rather than
   // emitting the Unix epoch, which some readers treat as "never updated".
   const buildMs = lastBuildMs ?? items[0]?.pubDateMs;
   const lastBuild =
-    buildMs != null ? `    <lastBuildDate>${toRfc822(buildMs)}</lastBuildDate>` : null;
+    buildMs != null ? [`    <lastBuildDate>${toRfc822(buildMs)}</lastBuildDate>`] : [];
 
+  // Kept as one indented line per element above for readable source, then
+  // minified by stripping each line's leading indentation and concatenating
+  // with no separators. trimStart (not trim) only removes the structural
+  // indentation: any whitespace or newline *inside* a value — e.g. a multi-line
+  // caption or CDATA payload — is left untouched, so minifying is lossless.
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">',
@@ -191,12 +196,13 @@ export function buildRss({
     `    <link>${escapeXml(link)}</link>`,
     `    <description>${escapeXml(description)}</description>`,
     `    <language>${escapeXml(language)}</language>`,
-    ...(lastBuild ? [lastBuild] : []),
-    ...(atomSelf ? [atomSelf] : []),
-    ...(channelImage ? [channelImage] : []),
+    ...lastBuild,
+    ...atomSelf,
+    ...channelImage,
     ...itemXml,
     '  </channel>',
     '</rss>',
-    '',
-  ].join('\n');
+  ]
+    .map((line) => line.trimStart())
+    .join('');
 }
