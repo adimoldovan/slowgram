@@ -54,11 +54,3 @@ Notes:
   without that field, dates are seeded from each photo's date taken.
 - `rss.xml` is uploaded with `Content-Type: application/rss+xml` and a short
   `max-age=900` so feed readers see new photos.
-
-### RSS feed
-
-Subscribe URL: **https://slowgram.amoldovan.ro/rss**
-
-GitHub Pages can't rewrite paths, so the proxy/CDN in front of the domain maps
-`/rss` → the S3 `rss.xml` object. Site metadata and the subscribe URL live
-under `site` / `feed.rss` in `config.json`.
