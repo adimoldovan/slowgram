@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import getPhotosGallery, { getVisiblePhotoIndices } from '../src/photos';
+import getPhotosGallery, {
+  getVisiblePhotoIndices,
+  extractColors,
+  compareByPopulation,
+  buildThumbnail,
+} from '../src/photos';
 import config from '../config.json';
 
 const samplePhotos = [
@@ -70,17 +75,9 @@ describe('getVisiblePhotoIndices', () => {
   });
 });
 
-describe('color extraction logic', () => {
+describe('extractColors', () => {
   it('extracts unique colors from photos', () => {
-    const allColors = [
-      ...new Set(
-        samplePhotos
-          .filter((photo) => photo.colors && Array.isArray(photo.colors))
-          .flatMap((photo) => photo.colors.map((colorObj) => colorObj.color)),
-      ),
-    ].filter(Boolean);
-
-    expect(allColors).toEqual(['#ff0000', '#00ff00', '#0000ff']);
+    expect(extractColors(samplePhotos)).toEqual(['#ff0000', '#00ff00', '#0000ff']);
   });
 
   it('handles photos without colors', () => {
@@ -92,21 +89,12 @@ describe('color extraction logic', () => {
       },
     ];
 
-    const allColors = [
-      ...new Set(
-        photos
-          .filter((photo) => photo.colors && Array.isArray(photo.colors))
-          .flatMap((photo) => photo.colors.map((colorObj) => colorObj.color)),
-      ),
-    ].filter(Boolean);
-
-    expect(allColors).toEqual(['#abc']);
+    expect(extractColors(photos)).toEqual(['#abc']);
   });
 });
 
-describe('color filtering sort order', () => {
+describe('compareByPopulation', () => {
   it('sorts matching photos by population desc, then original order asc', () => {
-    // Simulate the sort logic from filterPhotosByColor
     const color = '#ff0000';
     const matchingItems = samplePhotos
       .map((photo, index) => {
@@ -116,10 +104,7 @@ describe('color filtering sort order', () => {
       })
       .filter(Boolean);
 
-    matchingItems.sort((a, b) => {
-      if (b.population !== a.population) return b.population - a.population;
-      return a.originalOrder - b.originalOrder;
-    });
+    matchingItems.sort(compareByPopulation);
 
     // photo-c (population 20) should come before photo-a (population 10)
     expect(matchingItems).toEqual([
@@ -129,61 +114,36 @@ describe('color filtering sort order', () => {
   });
 
   it('breaks population ties by original order', () => {
-    const photos = [
-      { colors: [{ color: 'red', population: 5 }] },
-      { colors: [{ color: 'red', population: 5 }] },
-      { colors: [{ color: 'red', population: 5 }] },
+    const matchingItems = [
+      { population: 5, originalOrder: 0 },
+      { population: 5, originalOrder: 1 },
+      { population: 5, originalOrder: 2 },
     ];
 
-    const matchingItems = photos
-      .map((photo, index) => {
-        const colorData = photo.colors?.find((c) => c.color === 'red');
-        return { population: colorData.population, originalOrder: index };
-      })
-      .filter(Boolean);
-
-    matchingItems.sort((a, b) => {
-      if (b.population !== a.population) return b.population - a.population;
-      return a.originalOrder - b.originalOrder;
-    });
+    matchingItems.sort(compareByPopulation);
 
     expect(matchingItems.map((i) => i.originalOrder)).toEqual([0, 1, 2]);
   });
 });
 
-describe('thumbnail srcset building', () => {
+describe('buildThumbnail', () => {
   it('filters out sizes larger than 800w for thumbnails', () => {
-    const photo = {
-      src: {
-        path: '/photos/test',
-        src: 'full.webp',
-        set: ['thumb.webp 320w', 'medium.webp 800w', 'large.webp 1920w'],
-      },
-    };
+    const { srcset } = buildThumbnail({
+      path: '/photos/test',
+      src: 'full.webp',
+      set: ['thumb.webp 320w', 'medium.webp 800w', 'large.webp 1920w'],
+    });
 
-    const thumbnailSet = photo.src.set
-      .filter((pair) => parseInt(pair.split(' ')[1], 10) <= 800)
-      .map((pair) => {
-        const parts = pair.split(' ');
-        return `${photo.src.path}/${parts[0]} ${parts[1]}`;
-      })
-      .join(', ');
-
-    expect(thumbnailSet).toBe('/photos/test/thumb.webp 320w, /photos/test/medium.webp 800w');
+    expect(srcset).toBe('/photos/test/thumb.webp 320w, /photos/test/medium.webp 800w');
   });
 
   it('uses first set entry as thumbnail src', () => {
-    const photo = {
-      src: {
-        path: '/photos/test',
-        src: 'full.webp',
-        set: ['thumb.webp 320w', 'medium.webp 800w'],
-      },
-    };
+    const { src } = buildThumbnail({
+      path: '/photos/test',
+      src: 'full.webp',
+      set: ['thumb.webp 320w', 'medium.webp 800w'],
+    });
 
-    const [minSize] = photo.src.set[0].split(' ');
-    const thumbnailSrc = `${photo.src.path}/${minSize}`;
-
-    expect(thumbnailSrc).toBe('/photos/test/thumb.webp');
+    expect(src).toBe('/photos/test/thumb.webp');
   });
 });

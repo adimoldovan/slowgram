@@ -8,6 +8,38 @@ export function getVisiblePhotoIndices() {
   return [...visiblePhotoIndices];
 }
 
+// Unique, deduped list of colors across all photos (insertion order preserved).
+// Callers layer validation/sorting on top as needed.
+export function extractColors(photos) {
+  return [
+    ...new Set(
+      photos
+        .filter((photo) => Array.isArray(photo.colors))
+        .flatMap((photo) => photo.colors.map((colorObj) => colorObj.color))
+    ),
+  ].filter(Boolean);
+}
+
+// Sort matching photos by population descending, breaking ties by original order.
+export function compareByPopulation(a, b) {
+  if (b.population !== a.population) return b.population - a.population;
+  return a.originalOrder - b.originalOrder;
+}
+
+// Build the thumbnail src and srcset for a photo's `src` descriptor.
+// Thumbnails only need sizes up to 800w; the smallest entry is the fallback src.
+export function buildThumbnail(src) {
+  const srcset = src.set
+    .filter((pair) => parseInt(pair.split(' ')[1], 10) <= 800)
+    .map((pair) => {
+      const [file, width] = pair.split(' ');
+      return `${src.path}/${file} ${width}`;
+    })
+    .join(', ');
+  const [minSize] = src.set[0].split(' ');
+  return { src: `${src.path}/${minSize}`, srcset };
+}
+
 function filterPhotosByColor(color, count, photos) {
   const galleryItems = document.querySelectorAll('.gallery-item');
 
@@ -26,10 +58,7 @@ function filterPhotosByColor(color, count, photos) {
     }
   });
 
-  matchingItems.sort((a, b) => {
-    if (b.population !== a.population) return b.population - a.population;
-    return a.originalOrder - b.originalOrder;
-  });
+  matchingItems.sort(compareByPopulation);
 
   visiblePhotoIndices = [];
   matchingItems.forEach((item, index) => {
@@ -113,13 +142,7 @@ export default async function getPhotosGallery() {
     return (h * 60 + 360) % 360;
   }
 
-  const allColors = [
-    ...new Set(
-      photos
-        .filter((photo) => photo.colors && Array.isArray(photo.colors))
-        .flatMap((photo) => photo.colors.map((colorObj) => colorObj.color))
-    ),
-  ]
+  const allColors = extractColors(photos)
     .filter(isValidColor)
     .sort((a, b) => colorToHue(a) - colorToHue(b));
 
@@ -291,15 +314,7 @@ export default async function getPhotosGallery() {
       openLightbox(index);
     });
 
-    const thumbnailSet = photo.src.set
-      .filter((pair) => parseInt(pair.split(' ')[1], 10) <= 800)
-      .map((pair) => {
-        const parts = pair.split(' ');
-        return `${photo.src.path}/${parts[0]} ${parts[1]}`;
-      })
-      .join(', ');
-    const [minSize] = photo.src.set[0].split(' ');
-    const thumbnailSrc = `${photo.src.path}/${minSize}`;
+    const { src: thumbnailSrc, srcset: thumbnailSet } = buildThumbnail(photo.src);
 
     const img = document.createElement('img');
     if (index >= 6) img.loading = 'lazy';

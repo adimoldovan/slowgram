@@ -7,6 +7,9 @@ import { openLightboxByName, setNavigating } from './lightbox';
 
 history.scrollRestoration = 'manual';
 
+// Deep-link route: /photo/{name}, where {name} may contain slashes.
+export const PHOTO_PATH_PATTERN = /^\/photo\/(.+)$/;
+
 export function decodeSlug(encoded) {
   try {
     return decodeURIComponent(encoded);
@@ -93,7 +96,7 @@ if (redirectPath) {
   history.replaceState(null, '', redirectPath);
 }
 
-const photoMatch = window.location.pathname.match(/^\/photo\/(.+)$/);
+const photoMatch = window.location.pathname.match(PHOTO_PATH_PATTERN);
 if (photoMatch) {
   const name = decodeSlug(photoMatch[1]);
   if (name) openLightboxByName(name);
@@ -103,7 +106,7 @@ if (photoMatch) {
 // Handle browser back/forward button
 window.addEventListener('popstate', () => {
   const openDialog = document.querySelector('dialog.lightbox[open]');
-  const match = window.location.pathname.match(/^\/photo\/(.+)$/);
+  const match = window.location.pathname.match(PHOTO_PATH_PATTERN);
 
   if (openDialog && !match) {
     setNavigating(true);

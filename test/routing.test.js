@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decodeSlug } from '../src/index';
+import { decodeSlug, PHOTO_PATH_PATTERN } from '../src/index';
 
 describe('decodeSlug', () => {
   it('decodes a normal slug', () => {
@@ -24,7 +24,7 @@ describe('decodeSlug', () => {
 });
 
 describe('URL pattern matching', () => {
-  const pattern = /^\/photo\/(.+)$/;
+  const pattern = PHOTO_PATH_PATTERN;
 
   it('matches /photo/name', () => {
     const match = '/photo/summer-trip'.match(pattern);
