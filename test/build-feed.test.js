@@ -4,6 +4,7 @@ import os from 'os';
 import path from 'path';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
 import { extractMeta } from '../bin/feed-meta.js';
+import { decideFromSource, decideFromPixels } from '../bin/feed-plan.js';
 import { formatLocation } from '../bin/rss.js';
 
 describe('extractMeta', () => {
@@ -45,6 +46,52 @@ describe('extractMeta', () => {
 
   it('throws on an unparseable DateTimeOriginal rather than returning NaN', () => {
     expect(() => extractMeta({ DateTimeOriginal: 'not a date' })).toThrow('unparseable');
+  });
+});
+
+describe('decideFromSource', () => {
+  const reusable = {
+    rebuildAll: false,
+    hasExisting: true,
+    renditionExists: true,
+    sourceMatches: true,
+  };
+
+  it('reuses a byte-identical photo whose renditions still exist', () => {
+    expect(decideFromSource(reusable)).toBe('reuse');
+  });
+
+  it('inspects pixels when the source changed but renditions still exist', () => {
+    expect(decideFromSource({ ...reusable, sourceMatches: false })).toBe('inspect-pixels');
+  });
+
+  it('renders a brand-new photo with no existing entry', () => {
+    expect(decideFromSource({ ...reusable, hasExisting: false, sourceMatches: false })).toBe(
+      'render'
+    );
+  });
+
+  it('renders when the prior renditions are gone, even if the source matches', () => {
+    expect(decideFromSource({ ...reusable, renditionExists: false })).toBe('render');
+  });
+
+  it('renders under --rebuild-all regardless of the source hash', () => {
+    expect(decideFromSource({ ...reusable, rebuildAll: true })).toBe('render');
+  });
+});
+
+describe('decideFromPixels', () => {
+  it('renders when the pixel hash moved (a pixel edit)', () => {
+    expect(decideFromPixels({ existingPixelHash: 'aaa', pixelHash: 'bbb' })).toBe('render');
+  });
+
+  it('refreshes when the pixels are unchanged (a metadata-only edit)', () => {
+    expect(decideFromPixels({ existingPixelHash: 'aaa', pixelHash: 'aaa' })).toBe('refresh');
+  });
+
+  it('refreshes a legacy entry with no stored pixel hash rather than re-rendering', () => {
+    expect(decideFromPixels({ existingPixelHash: null, pixelHash: 'bbb' })).toBe('refresh');
+    expect(decideFromPixels({ existingPixelHash: undefined, pixelHash: 'bbb' })).toBe('refresh');
   });
 });
 

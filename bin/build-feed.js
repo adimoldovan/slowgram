@@ -22,6 +22,7 @@ import {
 import { createClient, pullBucket, syncToS3 } from './s3.js';
 import { renderIntoDir, entryAfterRender } from './feed-render.js';
 import { extractMeta } from './feed-meta.js';
+import { decideFromSource, decideFromPixels } from './feed-plan.js';
 
 const mirrorDir = fileURLToPath(new URL('../.s3-mirror', import.meta.url));
 
@@ -549,26 +550,32 @@ async function run() {
     const renditionExists =
       existing?.src?.src && fs.existsSync(`${mirrorDir}/${id}/${existing.src.src}`);
     const sourceHash = hashFile(filePath);
-    const reusable = !flags.rebuildAll && existing && renditionExists;
     // Computed lazily below if we need to compare pixels; reused by processImage
     // on the re-render path so the source is never decoded twice in one run.
     let pixelHash;
 
+    // Stage 1: decide from the cheap source-hash check alone (see feed-plan.js).
+    const action = decideFromSource({
+      rebuildAll: flags.rebuildAll,
+      hasExisting: Boolean(existing),
+      renditionExists: Boolean(renditionExists),
+      sourceMatches: existing?.sourceHash === sourceHash,
+    });
+
     let entry = null;
-    if (reusable && existing.sourceHash === sourceHash) {
+    if (action === 'reuse') {
       // Fast path: the file is byte-identical to last time -> nothing to do.
       entry = existing;
       reused++;
-    } else if (reusable) {
-      // Changed (or a legacy entry with no stored hash) but renditions still
-      // exist: work out whether the pixels moved. A legacy entry has no pixelHash
-      // to compare against, so we trust the existing renditions and treat it as a
-      // metadata-only edit (which also backfills both hashes for next time).
+    } else if (action === 'inspect-pixels') {
+      // Source changed but renditions still exist: hash the pixels and let
+      // decideFromPixels separate a metadata-only edit (refresh feed fields, keep
+      // renditions) from a pixel edit (re-render). A legacy entry with no stored
+      // pixelHash refreshes too, which backfills both hashes for next time.
       process.stdout.write(`  ➤ ${file}: checking for changes        \r`);
       try {
         pixelHash = await hashPixels(filePath);
-        const pixelsChanged = existing.pixelHash != null && pixelHash !== existing.pixelHash;
-        if (!pixelsChanged) {
+        if (decideFromPixels({ existingPixelHash: existing.pixelHash, pixelHash }) === 'refresh') {
           const meta = extractMeta(await getExifData(filePath));
           entry = { ...existing, ...meta, sourceHash, pixelHash };
           refreshed++;
