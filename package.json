@@ -26,6 +26,10 @@
     "url": "https://github.com/adimoldovan/slowgram/issues"
   },
   "homepage": "https://github.com/adimoldovan/slowgram",
+  "overrides": {
+    "esbuild": "^0.28.1",
+    "uuid": "^14.0.1"
+  },
   "devDependencies": {
     "@aws-sdk/client-s3": "^3",
     "@aws-sdk/lib-storage": "^3",
