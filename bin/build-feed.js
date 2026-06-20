@@ -3,7 +3,7 @@
 // wrappers — lives in feed-build.js so it can be imported and unit-tested without
 // running the build. This file exists only to invoke run() when the script is
 // executed directly (node bin/build-feed.js [options]). (f-59)
-import { run } from './feed-build.js';
+import { run } from './pipeline.js';
 
 try {
   await run();
