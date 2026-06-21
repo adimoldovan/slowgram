@@ -1,4 +1,24 @@
 #!/bin/sh
+set -e
 
-npm run format
-git add -u
+# Lint and format-check only the files staged for this commit, without
+# modifying them. If a check fails, the commit is aborted; fix the issues
+# (`npm run lint -- --fix` for lint errors, `npm run format` for formatting),
+# re-stage, and commit again.
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+# JS files get linted. eslint.config.js owns the ignore rules (e.g. dist/),
+# so we pass every staged .js and let eslint skip ignored ones quietly.
+js_files=$(printf '%s\n' "$staged" | grep -E '\.js$' || true)
+
+# JS/HTML/CSS under src/ get format-checked (matches `npm run format` scope).
+fmt_files=$(printf '%s\n' "$staged" | grep -E '^src/.*\.(js|html|css)$' || true)
+
+if [ -n "$js_files" ]; then
+  printf '%s\n' "$js_files" | tr '\n' '\0' | xargs -0 npx eslint --no-warn-ignored
+fi
+
+if [ -n "$fmt_files" ]; then
+  printf '%s\n' "$fmt_files" | tr '\n' '\0' | xargs -0 npx prettier --check
+fi
