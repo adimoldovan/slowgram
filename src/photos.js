@@ -1,6 +1,7 @@
 import config from '../config.json';
 import { initLightboxes, openLightbox } from './lightbox';
 import { photoAlt } from './photo-alt.js';
+import { photoSlug } from './photo-id.js';
 
 // Module-scoped state instead of window global
 let visiblePhotoIndices = [];
@@ -310,11 +311,27 @@ export default async function getPhotosGallery() {
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
     link.id = `p${index}`;
-    link.href = '#';
+    // Real deep-link target so middle-click / open-in-new-tab work and the
+    // gallery degrades gracefully without JS. Left-click is intercepted below
+    // and routed to the lightbox; the href matches the /photo/{slug} the
+    // lightbox pushes to history (see lightbox.js).
+    link.href = `/photo/${photoSlug(photo)}`;
     link.className = 'gallery-item';
     link.dataset.colors = (photo.colors || []).map((colorObj) => colorObj.color).join(',');
 
     link.addEventListener('click', (e) => {
+      // Let the browser handle modified clicks (new tab/window) and non-primary
+      // buttons natively so the real href above takes effect.
+      if (
+        e.defaultPrevented ||
+        e.button !== 0 ||
+        e.metaKey ||
+        e.ctrlKey ||
+        e.shiftKey ||
+        e.altKey
+      ) {
+        return;
+      }
       e.preventDefault();
       openLightbox(index);
     });

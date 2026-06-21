@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { openLightbox } from '../src/lightbox';
 import getPhotosGallery, {
   getVisiblePhotoIndices,
   extractColors,
@@ -6,6 +7,13 @@ import getPhotosGallery, {
   buildThumbnail,
 } from '../src/photos';
 import config from '../config.json';
+
+// Stub the lightbox module so we can assert when openLightbox runs and avoid
+// building real <dialog>s during gallery rendering.
+vi.mock('../src/lightbox', () => ({
+  initLightboxes: vi.fn(),
+  openLightbox: vi.fn(),
+}));
 
 const samplePhotos = [
   {
@@ -56,8 +64,84 @@ describe('feed fetching', () => {
 
     expect(fetchMock).toHaveBeenCalledWith(
       config.feed.url,
-      expect.objectContaining({ cache: 'reload' }),
+      expect.objectContaining({ cache: 'reload' })
     );
+  });
+});
+
+describe('gallery item links', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('points each anchor at its /photo/{slug} deep link instead of a dead href="#"', async () => {
+    // photo-c-- exercises photoSlug stripping the trailing dashes off the
+    // folder name (the slug is the last path segment with trailing "-" removed).
+    const photos = [
+      { src: { path: '/photos/photo-a', src: 'f.webp', set: ['t.webp 320w'] } },
+      { src: { path: '/photos/photo-b/', src: 'f.webp', set: ['t.webp 320w'] } },
+      { src: { path: '/photos/photo-c--', src: 'f.webp', set: ['t.webp 320w'] } },
+    ];
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => photos }));
+
+    const container = await getPhotosGallery();
+    const links = container.querySelectorAll('.gallery-item');
+
+    expect(links).toHaveLength(photos.length);
+    expect([...links].map((a) => a.getAttribute('href'))).toEqual([
+      '/photo/photo-a',
+      '/photo/photo-b',
+      '/photo/photo-c',
+    ]);
+  });
+
+  it('intercepts a plain left-click: opens the lightbox and prevents navigation', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => samplePhotos }));
+    openLightbox.mockClear();
+
+    const container = await getPhotosGallery();
+    const firstLink = container.querySelector('.gallery-item');
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 });
+    firstLink.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(true);
+    expect(openLightbox).toHaveBeenCalledWith(0);
+  });
+
+  it('lets modified clicks (open-in-new-tab) fall through to native navigation', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => samplePhotos }));
+
+    const container = await getPhotosGallery();
+    const firstLink = container.querySelector('.gallery-item');
+
+    for (const modifier of ['metaKey', 'ctrlKey', 'shiftKey', 'altKey']) {
+      openLightbox.mockClear();
+      const event = new MouseEvent('click', {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        [modifier]: true,
+      });
+      firstLink.dispatchEvent(event);
+
+      expect(event.defaultPrevented, `${modifier} click`).toBe(false);
+      expect(openLightbox, `${modifier} click`).not.toHaveBeenCalled();
+    }
+  });
+
+  it('ignores non-primary (e.g. middle) button clicks', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => samplePhotos }));
+    openLightbox.mockClear();
+
+    const container = await getPhotosGallery();
+    const firstLink = container.querySelector('.gallery-item');
+
+    const event = new MouseEvent('click', { bubbles: true, cancelable: true, button: 1 });
+    firstLink.dispatchEvent(event);
+
+    expect(event.defaultPrevented).toBe(false);
+    expect(openLightbox).not.toHaveBeenCalled();
   });
 });
 
