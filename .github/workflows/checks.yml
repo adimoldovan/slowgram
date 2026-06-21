@@ -1,0 +1,46 @@
+name: Checks
+
+# The deploy workflow ignores bin/** so feed-builder and S3 changes never
+# trigger a Pages rebuild. This workflow fills that gap: it runs lint, format,
+# and tests on bin/** pushes to main, and on every pull request, without
+# deploying.
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "bin/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Test
+        run: npm run test
