@@ -1,10 +1,19 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   photoSlug,
   getNextIndex,
   createLightbox,
   loadLightboxImage,
+  initLightboxes,
+  getOrCreateLightbox,
+  openLightboxByName,
 } from '../src/lightbox';
+
+// The lightbox registry is module-level singleton state. Reset it before every
+// test so isolation is explicit rather than relying on each test to re-init.
+beforeEach(() => {
+  initLightboxes([], null);
+});
 
 describe('photoSlug', () => {
   it('extracts the last path segment', () => {
@@ -110,6 +119,107 @@ describe('createLightbox', () => {
     expect(dialog.querySelector('.close')).not.toBeNull();
     expect(dialog.querySelector('.next')).not.toBeNull();
     expect(dialog.querySelector('.prev')).not.toBeNull();
+  });
+});
+
+describe('getOrCreateLightbox', () => {
+  const makePhoto = (slug) => ({
+    src: {
+      path: `/photos/${slug}`,
+      src: 'full.webp',
+      set: ['thumb.webp 320w', 'full.webp 1920w'],
+    },
+  });
+
+  const photos = [makePhoto('photo-a'), makePhoto('photo-b')];
+
+  it('builds the dialog lazily on first access and appends it to the container', () => {
+    const container = document.createElement('div');
+    initLightboxes(photos, container);
+
+    expect(container.children.length).toBe(0);
+
+    const dialog = getOrCreateLightbox(1);
+    expect(dialog.tagName).toBe('DIALOG');
+    expect(dialog.id).toBe('lightbox-1');
+    expect(dialog.dataset.photoName).toBe('photo-b');
+    expect(container.children.length).toBe(1);
+    expect(container.contains(dialog)).toBe(true);
+  });
+
+  it('caches the dialog so repeated access returns the same node', () => {
+    const container = document.createElement('div');
+    initLightboxes(photos, container);
+
+    const first = getOrCreateLightbox(0);
+    const second = getOrCreateLightbox(0);
+    expect(second).toBe(first);
+    expect(container.children.length).toBe(1);
+  });
+
+  it('returns null for an out-of-range index', () => {
+    const container = document.createElement('div');
+    initLightboxes(photos, container);
+
+    expect(getOrCreateLightbox(5)).toBeNull();
+    expect(container.children.length).toBe(0);
+  });
+
+  it('returns null before initLightboxes registers a container', () => {
+    initLightboxes([], null);
+    expect(getOrCreateLightbox(0)).toBeNull();
+  });
+});
+
+describe('openLightboxByName', () => {
+  const makePhoto = (slug) => ({
+    src: {
+      path: `/photos/${slug}`,
+      src: 'full.webp',
+      set: ['thumb.webp 320w', 'full.webp 1920w'],
+    },
+  });
+
+  const photos = [makePhoto('photo-a'), makePhoto('photo-b')];
+
+  let replaceSpy;
+  let showModalMock;
+
+  beforeEach(() => {
+    // jsdom does not implement showModal and has no matchMedia; stub both so the
+    // open flow runs without touching real layout.
+    showModalMock = vi.fn();
+    HTMLDialogElement.prototype.showModal = showModalMock;
+    vi.stubGlobal('matchMedia', vi.fn().mockReturnValue({ matches: false }));
+    replaceSpy = vi.spyOn(history, 'replaceState');
+  });
+
+  afterEach(() => {
+    delete HTMLDialogElement.prototype.showModal;
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  it('opens the lazily-created dialog matching the slug and updates the URL', () => {
+    const container = document.createElement('div');
+    initLightboxes(photos, container);
+
+    openLightboxByName('photo-b');
+
+    const dialog = container.querySelector('#lightbox-1');
+    expect(dialog).not.toBeNull();
+    expect(showModalMock).toHaveBeenCalledTimes(1);
+    expect(replaceSpy).toHaveBeenLastCalledWith(null, '', '/photo/photo-b');
+  });
+
+  it('falls back to root for an unknown slug without creating a dialog', () => {
+    const container = document.createElement('div');
+    initLightboxes(photos, container);
+
+    openLightboxByName('does-not-exist');
+
+    expect(container.children.length).toBe(0);
+    expect(replaceSpy).toHaveBeenLastCalledWith(null, '', '/');
   });
 });
 

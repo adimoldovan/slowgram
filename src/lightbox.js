@@ -19,6 +19,40 @@ const MAX_VERTICAL_DISTANCE = 100;
 let navigating = false;
 let hasPushedEntry = false;
 
+// Lazy lightbox registry. Building a full <dialog> (image, buttons, swipe and
+// keyboard listeners) for every photo up front does not scale — a 200-item feed
+// would create 200 hidden lightboxes nobody may ever open. Instead we register
+// the photos and the container, then build each dialog on first open and cache
+// it so subsequent opens reuse the same node.
+let registeredPhotos = [];
+let lightboxContainer = null;
+const dialogCache = new Map();
+
+// Cache keys are indices into the photos array passed here, so they are only
+// valid for the most recent registration. getPhotosGallery calls this once per
+// render; any future caller that reorders photos must re-init to avoid serving
+// a stale cached dialog at an index that now points to a different photo.
+export function initLightboxes(photos, container) {
+  registeredPhotos = photos;
+  lightboxContainer = container;
+  dialogCache.clear();
+}
+
+// Returns the dialog for `index`, building and caching it on first access.
+// Returns null for an out-of-range index or before initLightboxes runs.
+export function getOrCreateLightbox(index) {
+  const cached = dialogCache.get(index);
+  if (cached) return cached;
+
+  const photo = registeredPhotos[index];
+  if (!photo || !lightboxContainer) return null;
+
+  const { dialog } = createLightbox(photo, index);
+  dialogCache.set(index, dialog);
+  lightboxContainer.appendChild(dialog);
+  return dialog;
+}
+
 export function setNavigating(value) {
   navigating = value;
 }
@@ -125,8 +159,8 @@ function navigateLightbox(currentIndex, direction) {
   const targetIndex = getNextIndex(currentIndex, direction, visibleIndices);
   if (targetIndex === -1) return;
 
-  const currentDialog = document.getElementById(`lightbox-${currentIndex}`);
-  const targetDialog = document.getElementById(`lightbox-${targetIndex}`);
+  const currentDialog = getOrCreateLightbox(currentIndex);
+  const targetDialog = getOrCreateLightbox(targetIndex);
 
   if (currentDialog && targetDialog) {
     navigating = true;
@@ -288,7 +322,7 @@ function showDialog(dialog) {
 }
 
 export function openLightbox(index) {
-  const dialog = document.getElementById(`lightbox-${index}`);
+  const dialog = getOrCreateLightbox(index);
   if (dialog) {
     showDialog(dialog);
     hasPushedEntry = true;
@@ -297,7 +331,10 @@ export function openLightbox(index) {
 }
 
 export function openLightboxByName(name) {
-  const dialog = document.querySelector(`dialog[data-photo-name="${CSS.escape(name)}"]`);
+  // Dialogs are built lazily, so resolve the name to an index off the registry
+  // instead of querying the DOM for a node that may not exist yet.
+  const index = registeredPhotos.findIndex((photo) => photoSlug(photo) === name);
+  const dialog = index === -1 ? null : getOrCreateLightbox(index);
   if (dialog) {
     showDialog(dialog);
     history.replaceState(null, '', `/photo/${dialog.dataset.photoName}`);

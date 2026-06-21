@@ -1,5 +1,5 @@
 import config from '../config.json';
-import { createLightbox, openLightbox } from './lightbox';
+import { initLightboxes, openLightbox } from './lightbox';
 
 // Module-scoped state instead of window global
 let visiblePhotoIndices = [];
@@ -302,6 +302,10 @@ export default async function getPhotosGallery() {
     });
   }
 
+  // Lightboxes are built on first open rather than up front (see initLightboxes),
+  // so the gallery only carries the visible thumbnails here.
+  initLightboxes(photos, gallery);
+
   photos.forEach((photo, index) => {
     const link = document.createElement('a');
     link.id = `p${index}`;
@@ -324,11 +328,8 @@ export default async function getPhotosGallery() {
     img.className = 'gallery-image';
     img.alt = `Gallery image ${index + 1}`;
 
-    const { dialog } = createLightbox(photo, index);
-
     link.appendChild(img);
     gallery.appendChild(link);
-    gallery.appendChild(dialog);
   });
 
   visiblePhotoIndices = photos.map((_, index) => index);
