@@ -57,18 +57,17 @@ const config = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.
 
 const sizes = [320, 480, 600, 800, 1080, 1440, 1920, 2560];
 
-async function getExifData(filePath) {
+// Read EXIF for one file through an already-open ExiftoolProcess. The process is
+// opened once per build run and reused across every photo (see runBuild) rather
+// than spawning the exiftool binary per call — one process start instead of one
+// per processed/refreshed photo across the whole library.
+async function getExifData(ep, filePath) {
   let data;
-  const ep = new exiftool.ExiftoolProcess(exiftoolBin);
-  await ep.open();
-
   try {
     data = await ep.readMetadata(filePath, ['-File:all']);
   } catch (error) {
     ui.error(`Error reading EXIF data from ${filePath}: ${error.message}`);
     throw error;
-  } finally {
-    await ep.close();
   }
 
   if (!data || !data.data || !data.data[0]) {
@@ -287,7 +286,8 @@ export async function planPhoto({ file, photosDir, existing, rebuildAll, mirrorD
   }
 }
 
-async function processImage(file, index, photosDir, total, options, hashes = {}) {
+// `ep` is the open ExiftoolProcess shared across the run (see runBuild); required.
+async function processImage(file, index, photosDir, total, options, hashes = {}, ep) {
   const image = {};
 
   try {
@@ -300,7 +300,7 @@ async function processImage(file, index, photosDir, total, options, hashes = {})
     // values when passed and never read/decode the file a second time here.
     image.sourceHash = hashes.sourceHash ?? hashFile(filePath);
     image.pixelHash = hashes.pixelHash ?? (await hashPixels(filePath));
-    const data = await getExifData(filePath);
+    const data = await getExifData(ep, filePath);
     Object.assign(image, extractMeta(data));
 
     ui.phase('Process', `${file} · extracting colors`);
@@ -584,36 +584,45 @@ export async function runBuild(options) {
   let refreshed = 0;
   let built = 0;
   let keptExisting = 0;
-  for (const [index, file] of imageFiles.entries()) {
-    const id = path.parse(file).name;
-    const existing = existingMap.get(id);
-    ui.phase('Process', file);
-    const plan = await planPhoto({
-      file, photosDir, existing, rebuildAll: options.rebuildAll, mirrorDir: defaultMirrorDir,
-    });
-
-    let entry = null;
-    if (plan.action === 'reuse') { entry = existing; reused++; }
-    else if (plan.action === 'refresh') {
-      try {
-        const meta = extractMeta(await getExifData(`${photosDir}/${file}`));
-        entry = { ...existing, ...meta, sourceHash: plan.sourceHash, pixelHash: plan.pixelHash };
-        refreshed++;
-      } catch (error) { ui.error(`Error refreshing ${file}: ${error.message}`); }
-    }
-    if (!entry) {
-      const rendered = await processImage(file, index, photosDir, imageFiles.length, options, {
-        sourceHash: plan.sourceHash, pixelHash: plan.pixelHash,
+  // One exiftool process for the whole run: opened here, reused by every
+  // getExifData call below (render + refresh paths), and closed once in finally —
+  // instead of spawning/tearing down the binary per photo.
+  const ep = new exiftool.ExiftoolProcess(exiftoolBin);
+  await ep.open();
+  try {
+    for (const [index, file] of imageFiles.entries()) {
+      const id = path.parse(file).name;
+      const existing = existingMap.get(id);
+      ui.phase('Process', file);
+      const plan = await planPhoto({
+        file, photosDir, existing, rebuildAll: options.rebuildAll, mirrorDir: defaultMirrorDir,
       });
-      const { entry: resolved, status } = entryAfterRender(rendered, existing);
-      entry = resolved;
-      if (status === 'built') built++;
-      else if (status === 'kept-existing') {
-        keptExisting++;
-        ui.warn(`${file}: render failed; keeping previous renditions and feed entry.`);
+
+      let entry = null;
+      if (plan.action === 'reuse') { entry = existing; reused++; }
+      else if (plan.action === 'refresh') {
+        try {
+          const meta = extractMeta(await getExifData(ep, `${photosDir}/${file}`));
+          entry = { ...existing, ...meta, sourceHash: plan.sourceHash, pixelHash: plan.pixelHash };
+          refreshed++;
+        } catch (error) { ui.error(`Error refreshing ${file}: ${error.message}`); }
       }
+      if (!entry) {
+        const rendered = await processImage(file, index, photosDir, imageFiles.length, options, {
+          sourceHash: plan.sourceHash, pixelHash: plan.pixelHash,
+        }, ep);
+        const { entry: resolved, status } = entryAfterRender(rendered, existing);
+        entry = resolved;
+        if (status === 'built') built++;
+        else if (status === 'kept-existing') {
+          keptExisting++;
+          ui.warn(`${file}: render failed; keeping previous renditions and feed entry.`);
+        }
+      }
+      if (entry) entries.push(entry);
     }
-    if (entry) entries.push(entry);
+  } finally {
+    await ep.close();
   }
   ui.success(
     `${built} processed, ${refreshed} metadata-refreshed, ${reused} reused` +
