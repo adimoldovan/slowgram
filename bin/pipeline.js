@@ -106,38 +106,37 @@ async function convertImageToWebp(dir, fileName) {
   }
 }
 
-function getColor(rgb) {
+export function getColor(rgb) {
   const [r, g, b] = rgb;
 
+  // Hue ranges are contiguous so no chromatic hue is left without a bucket (the
+  // old 150–180 gap leaked cyan/teal into the gray fallback). Low-saturation
+  // pixels can still fall through to gray via the per-bucket s/l gates below —
+  // that is intentional. `find` returns the first match, so where neighbouring
+  // buckets share a boundary (e.g. green/blue at 150) the earlier entry wins.
   const colors = [
     {
       name: 'red',
-      range: [0, 25],
       check: (h, s, l) => (h >= 345 || h <= 15) && s >= 30 && l >= 20 && l <= 80,
     },
     {
       name: 'orange',
-      range: [15, 45],
       check: (h, s, l) => h >= 15 && h <= 45 && s >= 40 && l >= 25 && l <= 75,
     },
     {
       name: 'yellow',
-      range: [45, 70],
       check: (h, s, l) => h >= 45 && h <= 70 && s >= 30 && l >= 30 && l <= 85,
     },
     {
       name: 'green',
-      range: [70, 150],
       check: (h, s, l) => h >= 70 && h <= 150 && s >= 25 && l >= 20 && l <= 80,
     },
     {
       name: 'blue',
-      range: [150, 250],
-      check: (h, s, l) => h >= 180 && h <= 250 && s >= 25 && l >= 20 && l <= 80,
+      check: (h, s, l) => h >= 150 && h <= 250 && s >= 25 && l >= 20 && l <= 80,
     },
     {
       name: 'purple',
-      range: [250, 345],
       check: (h, s, l) => h >= 250 && h <= 345 && s >= 25 && l >= 20 && l <= 80,
     },
   ];
@@ -190,6 +189,22 @@ function getColor(rgb) {
   return matchingColor ? matchingColor.name : 'gray';
 }
 
+// Turn raw per-color population tallies into feed entries, sorted by population
+// descending, with each population expressed as a percentage of the total. A flat
+// image can produce an all-zero tally; guard the divide so we return [] instead of
+// serializing NaN populations into feed.json.
+export function summarizeColorCounts(colorCounts) {
+  const totalPopulation = Object.values(colorCounts).reduce((sum, pop) => sum + pop, 0);
+  if (totalPopulation === 0) return [];
+
+  return Object.entries(colorCounts)
+    .sort(([, a], [, b]) => b - a)
+    .map(([color, population]) => ({
+      color,
+      population: Math.round((population / totalPopulation) * 100),
+    }));
+}
+
 async function extractColors(filePath) {
   try {
     const palette = await Vibrant.from(filePath).getPalette();
@@ -211,15 +226,7 @@ async function extractColors(filePath) {
       }
     });
 
-    // Calculate total population for percentage conversion
-    const totalPopulation = Object.values(colorCounts).reduce((sum, pop) => sum + pop, 0);
-
-    return Object.entries(colorCounts)
-      .sort(([, a], [, b]) => b - a)
-      .map(([color, population]) => ({
-        color,
-        population: Math.round((population / totalPopulation) * 100),
-      }));
+    return summarizeColorCounts(colorCounts);
   } catch (error) {
     ui.error(`Error extracting colors from ${filePath}: ${error.message ?? error}`);
     return [];

@@ -7,7 +7,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import { planPhoto, reportUpdates } from '../bin/pipeline.js';
+import { planPhoto, reportUpdates, getColor, summarizeColorCounts } from '../bin/pipeline.js';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
 import { extractMeta } from '../bin/feed-meta.js';
 import {
@@ -460,5 +460,58 @@ describe('reportUpdates', () => {
 
     expect(updates).toEqual([]);
     expect(removals).toEqual([]);
+  });
+});
+
+describe('getColor', () => {
+  it('classifies the primary hues', () => {
+    expect(getColor([255, 0, 0])).toBe('red');
+    expect(getColor([0, 255, 0])).toBe('green');
+    expect(getColor([0, 0, 255])).toBe('blue');
+  });
+
+  it('classifies cyan/teal (hue 150-180) as blue instead of falling through to gray', () => {
+    // rgb(0,180,160) is hue ~173: above green's 150 ceiling but below the old
+    // blue floor of 180, so it used to leak into the gray fallback.
+    expect(getColor([0, 180, 160])).toBe('blue');
+  });
+
+  it('keeps the green/blue seam contiguous around hue 150', () => {
+    // The fix moved blue's floor from 180 to 150. Pixels just below the seam
+    // stay green; just above, they become blue — no gap, no double-gray.
+    expect(getColor([0, 255, 127])).toBe('green'); // hue ~149.9
+    expect(getColor([0, 255, 128])).toBe('blue'); // hue ~150.1
+  });
+
+  it('still treats desaturated pixels as grayscale', () => {
+    expect(getColor([128, 128, 128])).toBe('gray');
+    expect(getColor([10, 10, 10])).toBe('black');
+    expect(getColor([245, 245, 245])).toBe('white');
+  });
+});
+
+describe('summarizeColorCounts', () => {
+  it('converts tallies to percentages sorted by population descending', () => {
+    expect(summarizeColorCounts({ red: 30, blue: 10 })).toEqual([
+      { color: 'red', population: 75 },
+      { color: 'blue', population: 25 },
+    ]);
+  });
+
+  it('rounds percentages, which need not sum to 100', () => {
+    // 1/3 each → 33 after rounding, so the populations sum to 99, not 100.
+    expect(summarizeColorCounts({ red: 1, green: 1, blue: 1 })).toEqual([
+      { color: 'red', population: 33 },
+      { color: 'green', population: 33 },
+      { color: 'blue', population: 33 },
+    ]);
+  });
+
+  it('returns [] for an all-zero tally instead of NaN populations', () => {
+    expect(summarizeColorCounts({ gray: 0, blue: 0 })).toEqual([]);
+  });
+
+  it('returns [] for an empty tally', () => {
+    expect(summarizeColorCounts({})).toEqual([]);
   });
 });
