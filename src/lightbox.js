@@ -212,22 +212,36 @@ function addSwipeGestures(dialog, img, index) {
   });
 }
 
-function loadLightboxImage(img) {
+export function loadLightboxImage(img) {
   const { dataset } = img;
   if (!img.src && dataset.src) {
     img.style.opacity = '0';
     img.style.transform = 'translate(-50%, -50%) scale(0.9)';
 
-    img.src = dataset.src;
-    img.srcset = dataset.srcset;
-    img.sizes = dataset.sizes;
-
-    img.onload = () => {
+    // Idempotent: safe to call more than once (e.g. the complete check below
+    // fires and then a late load/error event also fires).
+    const reveal = () => {
       img.style.transition = SWIPE_TRANSITION_FAST;
       img.style.opacity = '1';
       img.style.transform = 'translate(-50%, -50%) scale(1)';
       img.onload = null;
+      img.onerror = null;
     };
+
+    // Wire handlers before assigning src so a cached image can't fire load
+    // before they attach. onerror reveals too, so a decode failure shows the
+    // broken-image fallback instead of staying invisible at opacity:0.
+    img.onload = reveal;
+    img.onerror = reveal;
+
+    // srcset/sizes before src so the browser picks the right candidate.
+    img.srcset = dataset.srcset;
+    img.sizes = dataset.sizes;
+    img.src = dataset.src;
+
+    // If the image was already complete (cached) before the handlers attached,
+    // the events may never fire — force the reveal.
+    if (img.complete) reveal();
   }
 }
 

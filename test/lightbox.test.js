@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { photoSlug, getNextIndex, createLightbox } from '../src/lightbox';
+import {
+  photoSlug,
+  getNextIndex,
+  createLightbox,
+  loadLightboxImage,
+} from '../src/lightbox';
 
 describe('photoSlug', () => {
   it('extracts the last path segment', () => {
@@ -105,5 +110,93 @@ describe('createLightbox', () => {
     expect(dialog.querySelector('.close')).not.toBeNull();
     expect(dialog.querySelector('.next')).not.toBeNull();
     expect(dialog.querySelector('.prev')).not.toBeNull();
+  });
+});
+
+describe('loadLightboxImage', () => {
+  // `cached: true` models a cached image, which reports `complete` synchronously
+  // once `src` is assigned — so the test proves the guard reads `complete` after
+  // setting `src`, not before.
+  const makeImg = (overrides = {}) => {
+    const { cached = false, ...rest } = overrides;
+    let srcValue = rest.src ?? '';
+    const img = {
+      style: {},
+      dataset: { src: 'full.webp', srcset: 'full.webp 1920w', sizes: '100vw' },
+      srcset: '',
+      sizes: '',
+      complete: false,
+      onload: null,
+      onerror: null,
+      ...rest,
+    };
+    Object.defineProperty(img, 'src', {
+      get: () => srcValue,
+      set(value) {
+        srcValue = value;
+        if (cached) img.complete = true;
+      },
+      configurable: true,
+      enumerable: true,
+    });
+    return img;
+  };
+
+  it('assigns src/srcset/sizes from data attributes and starts hidden', () => {
+    const img = makeImg();
+    loadLightboxImage(img);
+    expect(img.src).toBe('full.webp');
+    expect(img.srcset).toBe('full.webp 1920w');
+    expect(img.sizes).toBe('100vw');
+    expect(img.style.opacity).toBe('0');
+  });
+
+  it('wires handlers before they could be missed by a cached load', () => {
+    const img = makeImg();
+    loadLightboxImage(img);
+    expect(typeof img.onload).toBe('function');
+    expect(typeof img.onerror).toBe('function');
+  });
+
+  it('reveals the image on load', () => {
+    const img = makeImg();
+    loadLightboxImage(img);
+    img.onload();
+    expect(img.style.opacity).toBe('1');
+    expect(img.style.transform).toBe('translate(-50%, -50%) scale(1)');
+    expect(img.onload).toBeNull();
+    expect(img.onerror).toBeNull();
+  });
+
+  it('reveals the image on error so it never stays invisible', () => {
+    const img = makeImg();
+    loadLightboxImage(img);
+    img.onerror();
+    expect(img.style.opacity).toBe('1');
+    expect(img.onload).toBeNull();
+    expect(img.onerror).toBeNull();
+  });
+
+  it('reveals immediately when the image is already complete (cached)', () => {
+    const img = makeImg({ cached: true });
+    loadLightboxImage(img);
+    expect(img.style.opacity).toBe('1');
+    expect(img.style.transform).toBe('translate(-50%, -50%) scale(1)');
+    expect(img.onload).toBeNull();
+    expect(img.onerror).toBeNull();
+  });
+
+  it('does nothing when src is already set', () => {
+    const img = makeImg({ src: 'already.webp' });
+    loadLightboxImage(img);
+    expect(img.style.opacity).toBeUndefined();
+    expect(img.onload).toBeNull();
+  });
+
+  it('does nothing when there is no data src', () => {
+    const img = makeImg({ dataset: {} });
+    loadLightboxImage(img);
+    expect(img.src).toBe('');
+    expect(img.onload).toBeNull();
   });
 });
