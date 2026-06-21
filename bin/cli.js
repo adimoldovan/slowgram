@@ -6,11 +6,14 @@ import fs from 'fs';
 import { ui } from './ui.js';
 import { runBuild, runCheck, runSync } from './pipeline.js';
 
-const BUILD_FLAGS = {
-  '--rebuild-all': 'rebuildAll',
-  '--skip-convert': 'skipConvert',
-  '--skip-resize': 'skipResize',
-  '--skip-sync': 'skipSync',
+// Each flag maps to an option key plus the commands it is valid for.
+const FLAGS = {
+  '--rebuild-all': { key: 'rebuildAll', commands: ['build'] },
+  '--skip-convert': { key: 'skipConvert', commands: ['build'] },
+  '--skip-resize': { key: 'skipResize', commands: ['build'] },
+  '--skip-sync': { key: 'skipSync', commands: ['build'] },
+  '--yes': { key: 'assumeYes', commands: ['build', 'sync'] },
+  '-y': { key: 'assumeYes', commands: ['build', 'sync'] },
 };
 
 export const HELP_TEXT = `
@@ -28,6 +31,10 @@ build options:
   --skip-convert   Skip WebP conversion (when reprocessing)
   --skip-resize    Skip resizing (when reprocessing)
   --skip-sync      Build into .s3-mirror but do NOT upload
+  --yes, -y        Skip the S3 sync confirmation prompt (for unattended/CI runs)
+
+sync options:
+  --yes, -y        Skip the S3 sync confirmation prompt (for unattended/CI runs)
 
 Environment:
   SLOWGRAM_SOURCE_PATH   Source images (your full library)   [build, check]
@@ -37,7 +44,13 @@ Environment:
 `;
 
 function emptyOptions() {
-  return { rebuildAll: false, skipConvert: false, skipResize: false, skipSync: false };
+  return {
+    rebuildAll: false,
+    skipConvert: false,
+    skipResize: false,
+    skipSync: false,
+    assumeYes: false,
+  };
 }
 
 export function parse(argv) {
@@ -56,14 +69,15 @@ export function parse(argv) {
   }
 
   for (const arg of rest) {
-    const key = BUILD_FLAGS[arg];
-    if (!key) {
+    const flag = FLAGS[arg];
+    if (!flag) {
       return { command: first, options, error: `Unknown flag: ${arg}` };
     }
-    if (first !== 'build') {
-      return { command: first, options, error: `${arg} is only valid for "build"` };
+    if (!flag.commands.includes(first)) {
+      const valid = flag.commands.map((c) => `"${c}"`).join(', ');
+      return { command: first, options, error: `${arg} is only valid for ${valid}` };
     }
-    options[key] = true;
+    options[flag.key] = true;
   }
 
   return { command: first, options, error: null };
@@ -130,6 +144,6 @@ export async function main(argv) {
     return;
   }
   if (command === 'sync') {
-    await runSync();
+    await runSync(options);
   }
 }

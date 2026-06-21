@@ -38,8 +38,12 @@ function readJsonSafe(filePath) {
   }
 }
 
-function confirm(question) {
+export function confirm(question, { assumeYes = false } = {}) {
   ui.pause();
+  if (assumeYes) {
+    ui.info(`${question.trim()} (--yes — assuming "yes")`);
+    return Promise.resolve(true);
+  }
   if (!process.stdin.isTTY) {
     ui.info(`${question.trim()} (no TTY — assuming "no")`);
     return Promise.resolve(false);
@@ -51,6 +55,11 @@ function confirm(question) {
       resolve(/^y(es)?$/i.test(answer.trim()));
     });
   });
+}
+
+// Bind options.assumeYes so syncToS3 receives a one-arg confirm callback.
+function confirmWith(options) {
+  return (question) => confirm(question, { assumeYes: options.assumeYes });
 }
 
 const config = JSON.parse(fs.readFileSync(new URL('../config.json', import.meta.url), 'utf-8'));
@@ -508,11 +517,11 @@ function buildContext() {
   return { bucket, client: createClient(config) };
 }
 
-export async function runSync() {
+export async function runSync(options = {}) {
   const { bucket, client } = buildContext();
   ui.startPhases(['Sync']);
   ui.phase('Sync');
-  const res = await syncToS3(client, bucket, defaultMirrorDir, { confirm });
+  const res = await syncToS3(client, bucket, defaultMirrorDir, { confirm: confirmWith(options) });
   return { command: 'sync', synced: !res.cancelled };
 }
 
@@ -701,7 +710,7 @@ export async function runBuild(options) {
   }
   const removals = pruneMirror(defaultMirrorDir, keepIds);
   ui.phase('Sync');
-  const res = await syncToS3(client, bucket, defaultMirrorDir, { confirm });
+  const res = await syncToS3(client, bucket, defaultMirrorDir, { confirm: confirmWith(options) });
   return result(!res.cancelled, removals.length);
 
   function result(synced, pruned) {

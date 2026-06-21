@@ -7,7 +7,14 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import crypto from 'crypto';
-import { planPhoto, reportUpdates, getColor, summarizeColorCounts } from '../bin/pipeline.js';
+import process from 'node:process';
+import {
+  planPhoto,
+  reportUpdates,
+  getColor,
+  summarizeColorCounts,
+  confirm,
+} from '../bin/pipeline.js';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
 import { extractMeta } from '../bin/feed-meta.js';
 import {
@@ -23,6 +30,26 @@ import { formatLocation } from '../bin/rss.js';
 // set up an "existing" entry whose sourceHash matches a source file on disk.
 const sha256OfFile = (filePath) =>
   crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+
+describe('confirm', () => {
+  let savedIsTTY;
+  beforeEach(() => {
+    savedIsTTY = process.stdin.isTTY;
+  });
+  afterEach(() => {
+    process.stdin.isTTY = savedIsTTY;
+  });
+
+  it('resolves true without prompting when assumeYes is set (--yes)', async () => {
+    process.stdin.isTTY = true; // even on a TTY, --yes must skip the prompt
+    await expect(confirm('Apply changes? [y/N]', { assumeYes: true })).resolves.toBe(true);
+  });
+
+  it('resolves false on a non-TTY when assumeYes is not set', async () => {
+    process.stdin.isTTY = false;
+    await expect(confirm('Apply changes? [y/N]')).resolves.toBe(false);
+  });
+});
 
 describe('extractMeta', () => {
   const base = { DateTimeOriginal: '2024:03:15 09:30:00' };
