@@ -138,6 +138,12 @@ describe('photoPermalink', () => {
       'https://cdn/sunset/sunset-1920w.webp'
     );
   });
+
+  it('percent-encodes a slug with characters unsafe for URLs', () => {
+    expect(photoPermalink(photo('café trip'), 'https://x', 'fb')).toBe(
+      'https://x/photo/caf%C3%A9%20trip'
+    );
+  });
 });
 
 describe('resolvePublishedDates', () => {

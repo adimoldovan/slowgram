@@ -1,7 +1,7 @@
 import config from '../config.json';
 import { initLightboxes, openLightbox } from './lightbox';
 import { photoAlt } from './photo-alt.js';
-import { photoSlug } from './photo-id.js';
+import { photoPath } from './photo-id.js';
 
 // Module-scoped state instead of window global
 let visiblePhotoIndices = [];
@@ -315,7 +315,7 @@ export default async function getPhotosGallery() {
     // gallery degrades gracefully without JS. Left-click is intercepted below
     // and routed to the lightbox; the href matches the /photo/{slug} the
     // lightbox pushes to history (see lightbox.js).
-    link.href = `/photo/${photoSlug(photo)}`;
+    link.href = photoPath(photo);
     link.className = 'gallery-item';
     link.dataset.colors = (photo.colors || []).map((colorObj) => colorObj.color).join(',');
 

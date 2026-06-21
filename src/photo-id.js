@@ -12,3 +12,12 @@ export function photoId(image) {
 export function photoSlug(image) {
   return photoId(image).replace(/-+$/, '');
 }
+
+// The deep-link path for a photo: /photo/{slug}, percent-encoded per segment so
+// it round-trips through decodeSlug (decodeURIComponent) in src/index.js even if
+// a CDN folder name ever contains a space, #, ?, %, or non-ASCII character. Every
+// write site (gallery hrefs, history.pushState, RSS <link>s) routes through this
+// one helper so the URLs stay symmetric with the reader and cannot drift apart.
+export function photoPath(image) {
+  return `/photo/${photoSlug(image).split('/').map(encodeURIComponent).join('/')}`;
+}

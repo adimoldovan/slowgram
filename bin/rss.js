@@ -7,10 +7,10 @@
 // lives alongside the frontend alt-text helper so the feed and the app build a
 // photo's location label identically (one definition, no drift). All re-exported
 // here for build-feed.js and the tests that already import them from rss.js.
-import { photoId, photoSlug } from '../src/photo-id.js';
+import { photoId, photoSlug, photoPath } from '../src/photo-id.js';
 import { formatLocation } from '../src/photo-alt.js';
 
-export { photoId, photoSlug, formatLocation };
+export { photoId, photoSlug, photoPath, formatLocation };
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -81,7 +81,7 @@ export function escapeXml(value) {
 // URL) so the feed still carries a usable link without a site.
 export function photoPermalink(image, siteUrl, fallback) {
   if (!siteUrl) return fallback;
-  return `${siteUrl.replace(/\/+$/, '')}/photo/${photoSlug(image)}`;
+  return `${siteUrl.replace(/\/+$/, '')}${photoPath(image)}`;
 }
 
 // Resolve "first seen in the feed" timestamps used as RSS pubDates.

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { decodeSlug, PHOTO_PATH_PATTERN } from '../src/index';
+import { photoPath } from '../src/photo-id';
+
+const photo = (folder) => ({ src: { path: `https://cdn/${folder}` } });
 
 describe('decodeSlug', () => {
   it('decodes a normal slug', () => {
@@ -54,5 +57,25 @@ describe('URL pattern matching', () => {
     const match = '/photo/2024/summer-trip'.match(pattern);
     expect(match).not.toBeNull();
     expect(match[1]).toBe('2024/summer-trip');
+  });
+});
+
+describe('photoPath', () => {
+  it('builds /photo/{slug} for a plain ASCII folder name', () => {
+    expect(photoPath(photo('summer-trip'))).toBe('/photo/summer-trip');
+  });
+
+  it('percent-encodes characters that would break the URL or decodeSlug', () => {
+    expect(photoPath(photo('my photo'))).toBe('/photo/my%20photo');
+    expect(photoPath(photo('café'))).toBe('/photo/caf%C3%A9');
+    expect(photoPath(photo('a#b?c%d'))).toBe('/photo/a%23b%3Fc%25d');
+  });
+
+  it('round-trips through the PHOTO_PATH_PATTERN reader and decodeSlug', () => {
+    for (const folder of ['summer-trip', 'my photo', 'café', 'a#b?c%d']) {
+      const match = photoPath(photo(folder)).match(PHOTO_PATH_PATTERN);
+      expect(match).not.toBeNull();
+      expect(decodeSlug(match[1])).toBe(folder);
+    }
   });
 });

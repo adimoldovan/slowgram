@@ -1,7 +1,7 @@
 import { getVisiblePhotoIndices } from './photos';
 // photoSlug lives in the shared photo-identity module so the RSS feed's
 // /photo/{slug} links (bin/rss.js) stay in lockstep with this routing.
-import { photoSlug } from './photo-id.js';
+import { photoSlug, photoPath } from './photo-id.js';
 import { photoAlt } from './photo-alt.js';
 
 export { photoSlug };
@@ -174,7 +174,7 @@ function navigateLightbox(currentIndex, direction) {
     currentDialog.close();
     loadLightboxImage(targetDialog.querySelector('img'));
     targetDialog.showModal();
-    history.replaceState(null, '', `/photo/${targetDialog.dataset.photoName}`);
+    history.replaceState(null, '', photoPath(registeredPhotos[targetIndex]));
   }
 }
 
@@ -333,7 +333,7 @@ export function openLightbox(index) {
   if (dialog) {
     showDialog(dialog);
     hasPushedEntry = true;
-    history.pushState({ lightbox: index }, '', `/photo/${dialog.dataset.photoName}`);
+    history.pushState({ lightbox: index }, '', photoPath(registeredPhotos[index]));
   }
 }
 
@@ -344,7 +344,7 @@ export function openLightboxByName(name) {
   const dialog = index === -1 ? null : getOrCreateLightbox(index);
   if (dialog) {
     showDialog(dialog);
-    history.replaceState(null, '', `/photo/${dialog.dataset.photoName}`);
+    history.replaceState(null, '', photoPath(registeredPhotos[index]));
   } else {
     history.replaceState(null, '', '/');
   }
