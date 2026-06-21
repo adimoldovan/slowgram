@@ -21,8 +21,15 @@ export function animationEnabled({ isTTY }) {
 }
 
 const CODES = {
-  bold: 1, dim: 2, red: 31, green: 32, yellow: 33,
-  blue: 34, magenta: 35, cyan: 36, gray: 90,
+  bold: 1,
+  dim: 2,
+  red: 31,
+  green: 32,
+  yellow: 33,
+  blue: 34,
+  magenta: 35,
+  cyan: 36,
+  gray: 90,
 };
 
 export function makePalette(enabled) {
@@ -56,11 +63,19 @@ export class Ui {
     this.barLineActive = false;
   }
 
-  write(s) { this.stream.write(s); }
-  line(s = '') { this.clearActiveLine(); this.write(`${s}\n`); }
+  write(s) {
+    this.stream.write(s);
+  }
+  line(s = '') {
+    this.clearActiveLine();
+    this.write(`${s}\n`);
+  }
 
   banner(version) {
-    if (!this.animate) { this.line(`slowgram ${version}`); return; }
+    if (!this.animate) {
+      this.line(`slowgram ${version}`);
+      return;
+    }
     const { cyan, dim, bold } = this.c;
     this.line();
     this.line(bold(cyan('  ░▒▓ slowgram ▓▒░')));
@@ -68,7 +83,10 @@ export class Ui {
     this.line();
   }
 
-  startPhases(names) { this.phases = names; this.phaseIndex = 0; }
+  startPhases(names) {
+    this.phases = names;
+    this.phaseIndex = 0;
+  }
 
   // Advance the step-based bar to the named phase and (re)draw it.
   phase(name, detail) {
@@ -118,21 +136,40 @@ export class Ui {
     if (this.timer.unref) this.timer.unref();
     this.write(`${this.c.cyan(SPINNER_FRAMES[0])} ${this.spinnerText}`);
     return {
-      update: (t) => { this.spinnerText = t; },
-      succeed: (t) => { this.stopSpinner(); this.line(`${this.c.green('✓')} ${t ?? this.spinnerText}`); },
-      fail: (t) => { this.stopSpinner(); this.line(`${this.c.red('✗')} ${t ?? this.spinnerText}`); },
+      update: (t) => {
+        this.spinnerText = t;
+      },
+      succeed: (t) => {
+        this.stopSpinner();
+        this.line(`${this.c.green('✓')} ${t ?? this.spinnerText}`);
+      },
+      fail: (t) => {
+        this.stopSpinner();
+        this.line(`${this.c.red('✗')} ${t ?? this.spinnerText}`);
+      },
     };
   }
 
   stopSpinner() {
-    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
     if (this.animate) this.write('\r\x1b[2K');
   }
 
-  success(s) { this.line(`${this.c.green('✓')} ${s}`); }
-  warn(s) { this.line(`${this.c.yellow('⚠')} ${s}`); }
-  error(s) { this.line(`${this.c.red('✗')} ${s}`); }
-  info(s) { this.line(`${this.c.dim('•')} ${s}`); }
+  success(s) {
+    this.line(`${this.c.green('✓')} ${s}`);
+  }
+  warn(s) {
+    this.line(`${this.c.yellow('⚠')} ${s}`);
+  }
+  error(s) {
+    this.line(`${this.c.red('✗')} ${s}`);
+  }
+  info(s) {
+    this.line(`${this.c.dim('•')} ${s}`);
+  }
 
   // Boxed key/value table.
   summary(title, rows) {
@@ -153,9 +190,16 @@ export class Ui {
   }
 
   // Stop and clear any animation so a readline prompt or error writes cleanly.
-  pause() { this.stopSpinner(); this.clearActiveLine(); }
-  resume() { /* next phase()/spinner() call redraws; nothing to restore */ }
-  stop() { this.pause(); }
+  pause() {
+    this.stopSpinner();
+    this.clearActiveLine();
+  }
+  resume() {
+    /* next phase()/spinner() call redraws; nothing to restore */
+  }
+  stop() {
+    this.pause();
+  }
 }
 
 export const ui = new Ui();

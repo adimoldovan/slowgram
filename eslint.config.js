@@ -70,7 +70,11 @@ export default [
       'no-var': 'error',
       'prefer-const': ['error', { destructuring: 'any', ignoreReadBeforeAssign: true }],
       'prefer-arrow-callback': ['error', { allowNamedFunctions: false, allowUnboundThis: true }],
-      'prefer-destructuring': ['error', { array: true, object: true }, { enforceForRenamedProperties: false }],
+      'prefer-destructuring': [
+        'error',
+        { array: true, object: true },
+        { enforceForRenamedProperties: false },
+      ],
       'prefer-rest-params': 'error',
       'prefer-spread': 'error',
       'prefer-template': 'error',

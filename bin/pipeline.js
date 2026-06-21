@@ -558,7 +558,11 @@ export async function runCheck() {
     return { command: 'check', updates: [], removals: [] };
   }
   const result = await reportUpdates(
-    imageFiles, photosDir, existingMap, new Set(byId.keys()), defaultMirrorDir
+    imageFiles,
+    photosDir,
+    existingMap,
+    new Set(byId.keys()),
+    defaultMirrorDir
   );
   return { command: 'check', ...result };
 }
@@ -566,13 +570,23 @@ export async function runCheck() {
 export async function runBuild(options) {
   const { bucket, client } = buildContext();
   ui.startPhases(['Pull', 'Scan', 'Process', 'Dates', 'Feed', 'RSS', 'Prune', 'Sync']);
-  const { photosDir, imageFiles, existingFeed, existingMap, byId } =
-    await pullAndScan(client, bucket);
+  const { photosDir, imageFiles, existingFeed, existingMap, byId } = await pullAndScan(
+    client,
+    bucket
+  );
   if (imageFiles.length === 0) {
     ui.info('No image files found in source directory');
     return {
-      command: 'build', built: 0, refreshed: 0, reused: 0, keptExisting: 0,
-      pruned: 0, feedCount: 0, rssCount: 0, synced: false, dateWarnings: [],
+      command: 'build',
+      built: 0,
+      refreshed: 0,
+      reused: 0,
+      keptExisting: 0,
+      pruned: 0,
+      feedCount: 0,
+      rssCount: 0,
+      synced: false,
+      dateWarnings: [],
     };
   }
 
@@ -595,22 +609,39 @@ export async function runBuild(options) {
       const existing = existingMap.get(id);
       ui.phase('Process', file);
       const plan = await planPhoto({
-        file, photosDir, existing, rebuildAll: options.rebuildAll, mirrorDir: defaultMirrorDir,
+        file,
+        photosDir,
+        existing,
+        rebuildAll: options.rebuildAll,
+        mirrorDir: defaultMirrorDir,
       });
 
       let entry = null;
-      if (plan.action === 'reuse') { entry = existing; reused++; }
-      else if (plan.action === 'refresh') {
+      if (plan.action === 'reuse') {
+        entry = existing;
+        reused++;
+      } else if (plan.action === 'refresh') {
         try {
           const meta = extractMeta(await getExifData(ep, `${photosDir}/${file}`));
           entry = { ...existing, ...meta, sourceHash: plan.sourceHash, pixelHash: plan.pixelHash };
           refreshed++;
-        } catch (error) { ui.error(`Error refreshing ${file}: ${error.message}`); }
+        } catch (error) {
+          ui.error(`Error refreshing ${file}: ${error.message}`);
+        }
       }
       if (!entry) {
-        const rendered = await processImage(file, index, photosDir, imageFiles.length, options, {
-          sourceHash: plan.sourceHash, pixelHash: plan.pixelHash,
-        }, ep);
+        const rendered = await processImage(
+          file,
+          index,
+          photosDir,
+          imageFiles.length,
+          options,
+          {
+            sourceHash: plan.sourceHash,
+            pixelHash: plan.pixelHash,
+          },
+          ep
+        );
         const { entry: resolved, status } = entryAfterRender(rendered, existing);
         entry = resolved;
         if (status === 'built') built++;
@@ -639,9 +670,11 @@ export async function runBuild(options) {
   if (seed) {
     const missing = existingFeed.filter((e) => e.published == null).map(photoId);
     if (missing.length) {
-      const w = `${missing.length} existing photo(s) lack a publication date and will be ` +
+      const w =
+        `${missing.length} existing photo(s) lack a publication date and will be ` +
         `stamped now (re-dating to the top): ${missing.join(', ')}`;
-      dateWarnings.push(w); ui.warn(w);
+      dateWarnings.push(w);
+      ui.warn(w);
     }
   }
   const { map: published, firstRun } = resolvePublishedDates(entries, seed, Date.now());
@@ -673,8 +706,16 @@ export async function runBuild(options) {
 
   function result(synced, pruned) {
     return {
-      command: 'build', built, refreshed, reused, keptExisting,
-      pruned, feedCount: entries.length, rssCount, synced, dateWarnings,
+      command: 'build',
+      built,
+      refreshed,
+      reused,
+      keptExisting,
+      pruned,
+      feedCount: entries.length,
+      rssCount,
+      synced,
+      dateWarnings,
     };
   }
 }

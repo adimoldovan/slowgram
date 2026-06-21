@@ -13,8 +13,8 @@
     "clean:dist": "rm -rf dist",
     "clean:deps": "rm -rf node_modules",
     "lint": "eslint .",
-    "format": "prettier --write \"src/**/*.{js,html,css}\"",
-    "format:check": "prettier --check \"src/**/*.{js,html,css}\"",
+    "format": "prettier --write \"{src,bin}/**/*.{js,html,css}\" \"*.{js,html,css}\"",
+    "format:check": "prettier --check \"{src,bin}/**/*.{js,html,css}\" \"*.{js,html,css}\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepare": "git config core.hooksPath .githooks"

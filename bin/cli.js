@@ -102,14 +102,34 @@ function renderBuildSummary(r) {
 export async function main(argv) {
   const { command, options, error } = parse(argv);
 
-  if (command === 'version') { ui.line(version()); return; }
-  if (error) { ui.error(error); ui.line(HELP_TEXT); process.exitCode = 1; return; }
-  if (command === 'help') { ui.banner(version()); ui.line(HELP_TEXT); return; }
+  if (command === 'version') {
+    ui.line(version());
+    return;
+  }
+  if (error) {
+    ui.error(error);
+    ui.line(HELP_TEXT);
+    process.exitCode = 1;
+    return;
+  }
+  if (command === 'help') {
+    ui.banner(version());
+    ui.line(HELP_TEXT);
+    return;
+  }
 
   ui.banner(version());
   requireEnv(command);
 
-  if (command === 'build') { renderBuildSummary(await runBuild(options)); return; }
-  if (command === 'check') { await runCheck(); return; }
-  if (command === 'sync') { await runSync(); }
+  if (command === 'build') {
+    renderBuildSummary(await runBuild(options));
+    return;
+  }
+  if (command === 'check') {
+    await runCheck();
+    return;
+  }
+  if (command === 'sync') {
+    await runSync();
+  }
 }
