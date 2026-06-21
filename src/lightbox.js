@@ -2,6 +2,7 @@ import { getVisiblePhotoIndices } from './photos';
 // photoSlug lives in the shared photo-identity module so the RSS feed's
 // /photo/{slug} links (bin/rss.js) stay in lockstep with this routing.
 import { photoSlug } from './photo-id.js';
+import { photoAlt } from './photo-alt.js';
 
 export { photoSlug };
 
@@ -83,6 +84,7 @@ export function createLightbox(photo, index) {
   const maxWidth = Math.max(...photo.src.set.map((pair) => parseInt(pair.split(' ')[1], 10)));
 
   const img = document.createElement('img');
+  img.alt = photoAlt(photo, index);
   img.dataset.src = imageSrc;
   img.dataset.srcset = imageSrcSet;
   img.dataset.sizes = `(max-width: 380px) 320px,
@@ -94,19 +96,24 @@ export function createLightbox(photo, index) {
               (max-width: 2000px) 1920px,
               ${maxWidth}px`;
 
+  // The glyph textContent (\u00d7, \u2192, \u2190) is decorative, so each button carries an
+  // explicit aria-label to give assistive tech a meaningful accessible name.
   const closeBtn = document.createElement('button');
   closeBtn.className = 'slideshow-nav close';
   closeBtn.textContent = '\u00d7';
+  closeBtn.setAttribute('aria-label', 'Close');
   closeBtn.addEventListener('click', () => dialog.close());
 
   const nextBtn = document.createElement('button');
   nextBtn.className = 'slideshow-nav next';
   nextBtn.textContent = '\u2192';
+  nextBtn.setAttribute('aria-label', 'Next photo');
   nextBtn.addEventListener('click', () => navigateLightbox(index, 1));
 
   const prevBtn = document.createElement('button');
   prevBtn.className = 'slideshow-nav prev';
   prevBtn.textContent = '\u2190';
+  prevBtn.setAttribute('aria-label', 'Previous photo');
   prevBtn.addEventListener('click', () => navigateLightbox(index, -1));
 
   dialog.appendChild(img);

@@ -8,7 +8,7 @@ export default function getHeader() {
   const accountLinks = config.accounts
     .map(
       (account) =>
-        `<a href="${account.url}" target="_blank">
+        `<a href="${account.url}" target="_blank" rel="noopener noreferrer">
         <img src="${icons[account.icon]}" alt="${account.name}" />
       </a>`
     )

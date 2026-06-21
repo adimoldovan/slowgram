@@ -1,5 +1,6 @@
 import config from '../config.json';
 import { initLightboxes, openLightbox } from './lightbox';
+import { photoAlt } from './photo-alt.js';
 
 // Module-scoped state instead of window global
 let visiblePhotoIndices = [];
@@ -326,7 +327,7 @@ export default async function getPhotosGallery() {
     img.srcset = thumbnailSet;
     img.sizes = '(min-width: 912px) 300px, 33vw';
     img.className = 'gallery-image';
-    img.alt = `Gallery image ${index + 1}`;
+    img.alt = photoAlt(photo, index);
 
     link.appendChild(img);
     gallery.appendChild(link);

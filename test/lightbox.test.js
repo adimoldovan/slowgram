@@ -120,6 +120,23 @@ describe('createLightbox', () => {
     expect(dialog.querySelector('.next')).not.toBeNull();
     expect(dialog.querySelector('.prev')).not.toBeNull();
   });
+
+  it('gives the glyph buttons accessible names via aria-label', () => {
+    const { dialog } = createLightbox(photo, 0);
+    expect(dialog.querySelector('.close').getAttribute('aria-label')).toBe('Close');
+    expect(dialog.querySelector('.next').getAttribute('aria-label')).toBe('Next photo');
+    expect(dialog.querySelector('.prev').getAttribute('aria-label')).toBe('Previous photo');
+  });
+
+  it('sets a descriptive alt on the image from the photo metadata', () => {
+    const { lightboxImg } = createLightbox({ ...photo, title: 'Misty morning' }, 0);
+    expect(lightboxImg.alt).toBe('Misty morning');
+  });
+
+  it('falls back to the photo id when the photo has no title or location', () => {
+    const { lightboxImg } = createLightbox(photo, 2);
+    expect(lightboxImg.alt).toBe('test-photo');
+  });
 });
 
 describe('getOrCreateLightbox', () => {

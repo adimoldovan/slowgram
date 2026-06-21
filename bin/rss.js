@@ -3,11 +3,14 @@
 // the filesystem-derived bits (enclosure byte length) and writes the result.
 
 // photoId/photoSlug come from the frontend's shared module so feed <link>s
-// resolve to the same /photo/{slug} the app's routing produces. Re-exported
+// resolve to the same /photo/{slug} the app's routing produces. formatLocation
+// lives alongside the frontend alt-text helper so the feed and the app build a
+// photo's location label identically (one definition, no drift). All re-exported
 // here for build-feed.js and the tests that already import them from rss.js.
 import { photoId, photoSlug } from '../src/photo-id.js';
+import { formatLocation } from '../src/photo-alt.js';
 
-export { photoId, photoSlug };
+export { photoId, photoSlug, formatLocation };
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -54,15 +57,6 @@ export function toMonthYear(exifDate) {
   if (!m) return '';
   const month = FULL_MONTHS[parseInt(m[2], 10) - 1];
   return month ? `${month} ${m[1]}` : '';
-}
-
-// Human-readable location label: prefer the city, fall back to the state when
-// there's no city, then append the country (e.g. "Cluj, Romania"). Whitespace-
-// only fields are ignored. Returns an empty string when nothing is set.
-export function formatLocation(location) {
-  const clean = (value) => String(value ?? '').trim();
-  const place = clean(location?.city) || clean(location?.state);
-  return [place, clean(location?.country)].filter(Boolean).join(', ');
 }
 
 export function escapeXml(value) {

@@ -6,7 +6,7 @@ export default function getFooter() {
   // All values are from trusted config.json, not user input
   footer.innerHTML = `
     <div class="footer-source">
-      <a href="${config.gitUrl}" target="_blank">
+      <a href="${config.gitUrl}" target="_blank" rel="noopener noreferrer">
         <img src="${icons['github.svg']}" alt="github icon" />
       </a>
       <div class="commit-id">${__COMMIT_HASH__}</div>
