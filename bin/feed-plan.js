@@ -2,7 +2,7 @@
 // check (and, only when needed, the pixel-hash comparison) decide whether a photo
 // can be reused as-is, refreshed (metadata only), or must be re-rendered. Kept in
 // its own module with no I/O so the rules can be unit-tested without running the
-// whole build — the hashing, EXIF reads and rendering all stay in build-feed's run().
+// whole build — the hashing, EXIF reads and rendering all stay in pipeline.js's run().
 //
 // The two-stage shape mirrors run()'s lazy hashing: decideFromSource runs first on
 // the always-available source hash, and only its 'inspect-pixels' result asks the

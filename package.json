@@ -4,7 +4,7 @@
   "type": "module",
   "description": "an alternative to posting on instagram. add a photo once in a while, no stories, no likes, no comments, no ads, no tracking, no algorithms, no notifications, no pressure. just a photo.",
   "bin": {
-    "slowgram": "bin/build-feed.js"
+    "slowgram": "bin/slowgram.js"
   },
   "scripts": {
     "dev": "vite",

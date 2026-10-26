@@ -1,12 +1,12 @@
 // Pure helpers for generating an RSS 2.0 feed from processed photo data.
-// Kept side-effect free so they can be unit tested; build-feed.js supplies
+// Kept side-effect free so they can be unit tested; pipeline.js supplies
 // the filesystem-derived bits (enclosure byte length) and writes the result.
 
 // photoId/photoSlug come from the frontend's shared module so feed <link>s
 // resolve to the same /photo/{slug} the app's routing produces. formatLocation
 // lives alongside the frontend alt-text helper so the feed and the app build a
 // photo's location label identically (one definition, no drift). All re-exported
-// here for build-feed.js and the tests that already import them from rss.js.
+// here for pipeline.js and the tests that already import them from rss.js.
 import { photoId, photoSlug, photoPath } from '../src/photo-id.js';
 import { formatLocation } from '../src/photo-alt.js';
 

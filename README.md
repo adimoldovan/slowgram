@@ -29,7 +29,7 @@ for confirmation.
 
 Install the command once with `npm link` so `slowgram` is on your PATH. Without
 installing, run it via `npx slowgram <command>` or directly with
-`node bin/build-feed.js <command>` (all three are equivalent). `slowgram help`
+`node bin/slowgram.js <command>` (all three are equivalent). `slowgram help`
 and `slowgram --version` need no environment variables.
 
 ```bash

@@ -135,6 +135,6 @@ dist
 .superpowers/
 memory/
 
-# Local mirror of the S3 bucket, rebuilt by bin/build-feed.js
+# Local mirror of the S3 bucket, rebuilt by `slowgram`
 .s3-mirror/
 docs/superpowers/
