@@ -14,7 +14,9 @@ import {
   getColor,
   summarizeColorCounts,
   confirm,
+  convertImageToWebp,
 } from '../bin/pipeline.js';
+import sharp from 'sharp';
 import { renderIntoDir, entryAfterRender } from '../bin/feed-render.js';
 import { extractMeta } from '../bin/feed-meta.js';
 import {
@@ -540,5 +542,23 @@ describe('summarizeColorCounts', () => {
 
   it('returns [] for an empty tally', () => {
     expect(summarizeColorCounts({})).toEqual([]);
+  });
+});
+
+describe('convertImageToWebp', () => {
+  it('writes a .webp next to the source image', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'slowgram-'));
+    try {
+      await sharp({ create: { width: 4, height: 4, channels: 3, background: '#f00' } })
+        .jpeg()
+        .toFile(path.join(dir, 'a-320w.jpg'));
+
+      await convertImageToWebp(dir, 'a-320w.jpg');
+
+      const meta = await sharp(path.join(dir, 'a-320w.webp')).metadata();
+      expect(meta.format).toBe('webp');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

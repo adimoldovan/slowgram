@@ -5,8 +5,6 @@ import readline from 'readline';
 import { fileURLToPath } from 'url';
 import exiftool from 'node-exiftool';
 import exiftoolBin from 'dist-exiftool';
-import imagemin from 'imagemin';
-import webp from 'imagemin-webp';
 import sharp from 'sharp';
 import { Vibrant } from 'node-vibrant/node';
 import {
@@ -102,12 +100,11 @@ async function hashPixels(filePath) {
   return crypto.createHash('sha256').update(buffer).digest('hex');
 }
 
-async function convertImageToWebp(dir, fileName) {
+export async function convertImageToWebp(dir, fileName) {
   try {
-    await imagemin([`${dir}/${fileName}`], {
-      destination: dir,
-      plugins: [webp({ quality: 80 })],
-    });
+    await sharp(`${dir}/${fileName}`)
+      .webp({ quality: 80 })
+      .toFile(`${dir}/${path.parse(fileName).name}.webp`);
   } catch (error) {
     ui.error(`Error converting ${fileName} to .webp: ${error.message}`);
     throw error;
