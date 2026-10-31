@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'child_process';
-import appConfig from './config.json';
+import appConfig from './config.json' with { type: 'json' };
 
 if (!appConfig?.feed?.url) throw new Error('config.json missing feed.url');
 
